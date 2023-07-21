@@ -1,0 +1,154 @@
+---
+title: "map-nc-land-covariates"
+output: html_document
+date: "2023-07-18"
+---
+
+Libraries
+
+```{r, results='hide'}
+# -- for spatial data
+library(ggplot2)
+library(sf)
+library(raster)
+library(sp)
+library(terra)
+# -- for timeseries
+library(lubridate)
+library(zoo)
+library(xts)
+# -- 
+library(maditr)
+library(tidyverse)
+library(viridis)
+```
+
+#### NC shapefile
+
+```{r, warning=FALSE}
+nc.borders <- readOGR(dsn = "../Input/NC_county_boundary/.", layer = "North_Carolina_State_and_County_Boundary_Polygons")
+```
+
+```{r}
+crs(nc.borders)
+```
+
+#### NOAA aws
+
+```{r}
+aws <- data.table::fread("../Input/NC-AWS-NOAA-dailysummary-20220601-20220831.csv") 
+length(unique(aws$STATION))
+aws <- aws[which(!(is.na(aws$TMAX)|is.na(aws$TMIN))),] 
+aws$DATE <- as.Date(aws$DATE, format = "%Y-%m-%d")
+length(unique(aws$STATION))
+```
+
+Daily max temperatures
+
+```{r, message=FALSE}
+aws.ts.tx <- maditr::dcast(aws[, c('DATE', 'STATION', 'TMAX')], DATE ~ STATION) %>%
+  as.xts() 
+plot(aws.ts.tx)
+
+nb.na.tx <- lapply(aws.ts.tx, FUN=function(x) sum(is.na(x)))  
+nb.na.tx <- as.data.frame(do.call(rbind, nb.na.tx))
+nb.na.tx <- cbind(STATION = rownames(nb.na.tx), nb.na.tx)
+rownames(nb.na.tx) <- 1:nrow(nb.na.tx)
+names(nb.na.tx)[names(nb.na.tx) == 'V1'] <- 'nb.na.tx'
+
+```
+
+Daily min temperatures
+
+```{r, message=FALSE}
+aws.ts.tn <- maditr::dcast(aws[, c('DATE', 'STATION', 'TMAX')], DATE ~ STATION) %>%
+  as.xts() 
+#plot(aws.ts.tn)
+boxplot(t(aws.ts.tx))
+
+nb.na.tn <- lapply(aws.ts.tn, FUN=function(x) sum(is.na(x)))  
+nb.na.tn <- as.data.frame(do.call(rbind, nb.na.tn))
+nb.na.tn <- cbind(STATION = rownames(nb.na.tn), nb.na.tn)
+rownames(nb.na.tn) <- 1:nrow(nb.na.tn)
+names(nb.na.tn)[names(nb.na.tn) == 'V1'] <- 'nb.na.tn'
+```
+
+Daily mean temperatures
+
+```{r, message=FALSE}
+aws.ts.tm <- maditr::dcast(aws[, c('DATE', 'STATION', 'TMAX')], DATE ~ STATION) %>%
+  as.xts() 
+plot(aws.ts.tm)
+
+nb.na.tm <- lapply(aws.ts.tm, FUN=function(x) sum(is.na(x)))  
+nb.na.tm <- as.data.frame(do.call(rbind, nb.na.tm))
+nb.na.tm <- cbind(STATION = rownames(nb.na.tm), nb.na.tm)
+rownames(nb.na.tm) <- 1:nrow(nb.na.tm)
+names(nb.na.tm)[names(nb.na.tm) == 'V1'] <- 'nb.na.tm'
+```
+
+Map NOAA aws with less than 5% missing data
+
+```{r , message=FALSE}
+stations <- unique(aws[,c('STATION', 'NAME', 'LATITUDE', 'LONGITUDE', 'ELEVATION')])
+stations <- list(stations, nb.na.tx, nb.na.tn, nb.na.tm) %>% reduce(full_join, by='STATION')
+aws <- list(aws, nb.na.tx, nb.na.tn, nb.na.tm) %>% reduce(full_join, by='STATION')
+
+# -- turn into a SpatialPointDataframe to reproject CRS
+coordinates(stations) <- ~ LONGITUDE + LATITUDE 
+crs(stations) <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
+stations <- spTransform(stations, crs(nc.borders))
+stations <- data.frame(stations)
+
+ggplot() + 
+  geom_polygon(data = nc.borders, aes(x = long, y = lat, group = group), 
+               colour = "grey", fill = NA) +
+  coord_equal()+
+  geom_point(data = stations[which(stations$nb.na.tx<=5),], aes(x=LONGITUDE, y=LATITUDE), 
+             size=.5, fill = NA)+
+  scale_color_discrete(name="")
+```
+
+Map minimum temperatures on 2022-07-07 (one of the hottest day)
+
+```{r, message=F}
+# -- turn into a SpatialPointDataframe to reproject CRS
+coordinates(aws) <- ~ LONGITUDE + LATITUDE 
+crs(aws) <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
+aws <- spTransform(aws, crs(nc.borders))
+aws <- data.frame(aws)
+
+ggplot() + 
+  geom_polygon(data = nc.borders, aes(x = long, y = lat, group = group), 
+               colour = "grey", fill = NA) +
+  coord_equal()+
+  geom_point(data = aws[which(aws$DATE==as.Date("2022-07-07")),], 
+             aes(x=LONGITUDE, y=LATITUDE, color=(TMIN-32)*5/9), 
+             size=2)+
+  scale_color_viridis(option = "H")
+```
+
+#### Digital Elevation Model (DEM)
+
+Open all .TIF files and merge them to create a single DEM file for the entire NC.
+
+```{r, eval=F}
+dir <- "../Input/NC_DEM/"
+files <- list.files(path=dir, full.names = TRUE)
+rasters <- lapply(files, FUN = rast)
+rasters <- sprc(rasters)
+dem <- merge(rasters)
+writeRaster(dem, "../Input/NC-DEM.tif")
+```
+
+Plot DEM
+
+```{r}
+plot(dem)
+```
+
+Session info
+
+```{r}
+sessionInfo()
+```

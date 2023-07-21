@@ -1,0 +1,56 @@
+---
+title: "create-prediction-grid"
+output: html_document
+date: "2023-07-20"
+---
+
+Libraries
+
+```{r, results='hide'}
+library(raster)
+library(terra)
+library(ggplot2)
+library(rgeos)
+```
+
+```{r}
+nc.borders <- readOGR(dsn = "../Input/NC_county_boundary/.", layer = "North_Carolina_State_and_County_Boundary_Polygons")
+```
+
+```{r}
+beepr::beep(sound=3)
+```
+
+Change nc.borders units (us feet to meter)
+
+```{r}
+crs.meters <- "+proj=lcc +lat_0=33.75 +lon_0=-79 +lat_1=36.1666666666667 +lat_2=34.3333333333333 +x_0=609601.219202439 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+nc.borders <- spTransform(nc.borders, crs.meters)
+```
+
+Create a 500m-resolution raster in NC shapefile
+
+```{r}
+grid <- raster(extent(nc.borders), resolution = c(10000,10000), crs = crs.meters)
+grid <- raster::extend(grid, c(1,1))
+gridPolygon <- rasterToPolygons(grid)
+final.grid <- raster::intersect(gridPolygon, nc.borders)
+writeOGR(final.grid, dsn="../Input/", layer="prediction.grid.empty", driver="ESRI Shapefile")
+```
+
+```{r}
+class(final.grid)
+```
+
+Map with r base plot function
+
+```{r, eval=F}
+plot(nc.borders)
+plot(final.grid, add=T)
+```
+
+Session info
+
+```{r}
+sessionInfo()
+```

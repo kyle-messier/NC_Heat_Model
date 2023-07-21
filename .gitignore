@@ -9,6 +9,7 @@
 # Ignore specific folders
 input/
 output/
+manuscript/
 
 # User-specific files
 .Ruserdata

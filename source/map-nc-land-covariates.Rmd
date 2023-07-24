@@ -8,16 +8,21 @@ Libraries
 
 ```{r, results='hide'}
 # -- for spatial data
-library(ggplot2)
-library(sf)
-library(raster)
+#library(raster)   # -- old
+#library(rgdal)    # -- deprecated in 10/2023
+#library(rgeos)    # -- deprecated in 10/2023
+#library(maptools) # -- deprecated in 10/2023
+options("sp_evolution_status" = 2) # use sf instead of rgdal and rgeos in sp
 library(sp)
 library(terra)
+library(sf)
+
 # -- for timeseries
 library(lubridate)
 library(zoo)
 library(xts)
 # -- 
+library(ggplot2)
 library(maditr)
 library(tidyverse)
 library(viridis)
@@ -26,17 +31,17 @@ library(viridis)
 #### NC shapefile
 
 ```{r, warning=FALSE}
-nc.borders <- readOGR(dsn = "../Input/NC_county_boundary/.", layer = "North_Carolina_State_and_County_Boundary_Polygons")
+nc.borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp")
 ```
 
-```{r}
+```{r, echo=F}
 crs(nc.borders)
 ```
 
 #### NOAA aws
 
 ```{r}
-aws <- data.table::fread("../Input/NC-AWS-NOAA-dailysummary-20220601-20220831.csv") 
+aws <- data.table::fread("../input/NC-AWS-NOAA-dailysummary-20220601-20220831.csv") 
 length(unique(aws$STATION))
 aws <- aws[which(!(is.na(aws$TMAX)|is.na(aws$TMIN))),] 
 aws$DATE <- as.Date(aws$DATE, format = "%Y-%m-%d")
@@ -94,17 +99,16 @@ stations <- unique(aws[,c('STATION', 'NAME', 'LATITUDE', 'LONGITUDE', 'ELEVATION
 stations <- list(stations, nb.na.tx, nb.na.tn, nb.na.tm) %>% reduce(full_join, by='STATION')
 aws <- list(aws, nb.na.tx, nb.na.tn, nb.na.tm) %>% reduce(full_join, by='STATION')
 
-# -- turn into a SpatialPointDataframe to reproject CRS
-coordinates(stations) <- ~ LONGITUDE + LATITUDE 
-crs(stations) <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
-stations <- spTransform(stations, crs(nc.borders))
+# -- turn into a sf object to reproject CRS
+stations <- st_as_sf(stations, coords=c('LONGITUDE', 'LATITUDE'))
+st_crs(stations) <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
+stations <- st_transform(stations, crs(nc.borders))
 stations <- data.frame(stations)
 
 ggplot() + 
-  geom_polygon(data = nc.borders, aes(x = long, y = lat, group = group), 
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry),
                colour = "grey", fill = NA) +
-  coord_equal()+
-  geom_point(data = stations[which(stations$nb.na.tx<=5),], aes(x=LONGITUDE, y=LATITUDE), 
+  geom_sf(data = stations[which(stations$nb.na.tx<=5),], aes(geometry=geometry),
              size=.5, fill = NA)+
   scale_color_discrete(name="")
 ```
@@ -113,17 +117,16 @@ Map minimum temperatures on 2022-07-07 (one of the hottest day)
 
 ```{r, message=F}
 # -- turn into a SpatialPointDataframe to reproject CRS
-coordinates(aws) <- ~ LONGITUDE + LATITUDE 
-crs(aws) <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
-aws <- spTransform(aws, crs(nc.borders))
+aws <- st_as_sf(aws, coords=c('LONGITUDE', 'LATITUDE'))
+st_crs(aws) <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
+aws <- st_transform(aws, crs(nc.borders))
 aws <- data.frame(aws)
 
 ggplot() + 
-  geom_polygon(data = nc.borders, aes(x = long, y = lat, group = group), 
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
                colour = "grey", fill = NA) +
-  coord_equal()+
-  geom_point(data = aws[which(aws$DATE==as.Date("2022-07-07")),], 
-             aes(x=LONGITUDE, y=LATITUDE, color=(TMIN-32)*5/9), 
+  geom_sf(data = aws[which(aws$DATE==as.Date("2022-07-07")),], 
+             aes(geometry=geometry, color=(TMIN-32)*5/9), 
              size=2)+
   scale_color_viridis(option = "H")
 ```
@@ -133,12 +136,12 @@ ggplot() +
 Open all .TIF files and merge them to create a single DEM file for the entire NC.
 
 ```{r, eval=F}
-dir <- "../Input/NC_DEM/"
+dir <- "../input/NC_DEM/"
 files <- list.files(path=dir, full.names = TRUE)
 rasters <- lapply(files, FUN = rast)
 rasters <- sprc(rasters)
 dem <- merge(rasters)
-writeRaster(dem, "../Input/NC-DEM.tif")
+terra::writeRaster(dem, "../input/NC-DEM.tif")
 ```
 
 Plot DEM

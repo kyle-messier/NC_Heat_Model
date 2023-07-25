@@ -1,0 +1,124 @@
+---
+title: "era5-reanalysis-processing"
+output: html_document
+date: "2023-07-24"
+---
+
+Libraries
+
+```{r, results='hide'}
+# -- for spatial data
+#library(raster)   # -- old
+#library(rgdal)    # -- deprecated in 10/2023
+#library(rgeos)    # -- deprecated in 10/2023
+#library(maptools) # -- deprecated in 10/2023
+options("sp_evolution_status" = 2) # use sf instead of rgdal and rgeos in sp
+library(sp)
+library(terra)
+library(sf)
+library(ncdf4)
+
+# -- for timeseries
+library(lubridate)
+library(zoo)
+library(xts)
+
+# -- 
+library(ggplot2)
+library(ggspatial)
+library(tidyterra)
+library(maditr)
+library(tidyverse)
+library(viridis)
+```
+
+#### NC shapefile
+
+```{r, warning=FALSE}
+nc.borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp")
+```
+
+#### Temperature ERA5 reanalysis
+
+Open netcdf data with all JJA ERA5 reanalysis at 10UTC (6AM) and 19UTC (3PM)
+
+```{r}
+t2m.rea <- nc_open("../input/era5_hourly_reanalysis_20220601_20220831.nc")
+print(t2m.rea)
+```
+
+Extract data in vectors and 3d-matrix
+
+```{r}
+lon <- ncvar_get(t2m.rea, "longitude")
+lat <- ncvar_get(t2m.rea, "latitude")
+time <- ncvar_get(t2m.rea, "time")
+t2m <- ncvar_get(t2m.rea, "t2m") - 273.15
+na.value <- ncatt_get(t2m.rea, "t2m", "_FillValue")$value
+t2m[t2m==na.value] <- NA
+cat(paste('time units:', ncatt_get(t2m.rea, "time", "units")$value))
+time <- as.POSIXct(time*3600, origin="1900-01-01", tz="UTC")
+```
+
+Map T2M for one hour
+
+```{r}
+# one time
+ts <- as.POSIXct("2022-08-01 11:00:00 UTC", tz='UTC')
+samp <- t2m[,,which(time==ts)]
+# need to add 0.25/2 to 
+samp.rast <- rast(t(samp), extent=c(-85.125,-74.875,33.375,37.125), crs='+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
+
+ggplot() +
+  geom_spatraster(data = samp.rast) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "white", linewidth=.3, fill = NA) +
+  scale_fill_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "º"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  labs(
+    fill = "",
+    title = "T2m North Carolina",
+    subtitle = paste(ts, 'UTC')
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+```
+
+Code to create a dataframe from the netcdf
+
+```{r}
+# -- /!\ latitude vector is decreasing
+lon.lat.time <- as.matrix(expand.grid(lon, rev(lat), time))
+t2m.vect <- as.vector(t2m[,ncol(t2m):1,])
+t2m.df <- data.frame(cbind(lon.lat.time, t2m.vect))
+colnames(t2m.df) <- c("lon", "lat", "time", 't2m')
+t2m.df$t2m <- as.numeric(t2m)
+```
+
+Session info
+
+```{r}
+sessionInfo()
+```

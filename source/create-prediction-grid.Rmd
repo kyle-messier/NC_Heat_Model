@@ -23,15 +23,27 @@ library(tidyterra)
 library(rgeos)
 ```
 
-#### In this script...
+### In this script...
 
--   Open NC borders and 30m-imperviousness data over NC
+#### 1) Create empty grid
 
--   Compute imperviousness mean over 5km-resolution grid
+1.  Open NC borders and 30m-imperviousness data over NC
 
--   Create an urban mask defined as 5kmx5km grid cells with imperviousness \>5%
+2.  Compute imperviousness mean over 5km-resolution grid
 
--   Create a grid with 1kmx1km cells above rural areas and 200mx200m cells above urban ones
+3.  Create an urban mask defined as 5kmx5km grid cells with imperviousness \>5%
+
+4.  Create a grid with 1kmx1km cells above rural areas and 200mx200m cells above urban ones
+
+#### 2) Add covariates
+
+-   Land cover and urban indicators: imperviousness, building footprint, building height, tree canopy cover
+
+-   Digital Elevation Model (DEM)
+
+-   Meteorological covariates (pb evolves in time)
+
+## Empty grid creation
 
 ### NC borders
 
@@ -255,14 +267,14 @@ Save urban and rural grid (squared polygons) and save all prediction grid as a u
 
 ```{r}
 urb.grid.df <- centroids(urb.grid, inside=T)
-urb.grid.df <- project(urb.grid.df, "+proj=longlat +datum=WGS84")
+#urb.grid.df <- project(urb.grid.df, "+proj=longlat +datum=WGS84")
 #urb.grid.df <- as.data.frame(geom(urb.grid.df, xnm='lon', ynm='lat'))
 #urb.grid.df <- urb.grid.df[, c('x','y')]
 #colnames(urb.grid.df) <- c('lon', 'lat')
 #head(urb.grid.df)
 
 rur.grid.df <- centroids(rur.grid, inside=T)
-rur.grid.df <- project(rur.grid.df, "+proj=longlat +datum=WGS84")
+#rur.grid.df <- project(rur.grid.df, "+proj=longlat +datum=WGS84")
 #rur.grid.df <- as.data.frame(geom(rur.grid.df, xnm='lon', ynm='lat'))
 #rur.grid.df <- rur.grid.df[, c('x','y')]
 #colnames(rur.grid.df) <- c('lon', 'lat')
@@ -271,6 +283,8 @@ rur.grid.df <- project(rur.grid.df, "+proj=longlat +datum=WGS84")
 #writeVector(grid.df, filename="../inout/empty_prediction_grid.shp", overwrite=T)
 
 ```
+
+## Covariates addition
 
 Session info
 

@@ -1,12 +1,14 @@
 ---
 title: "era5-reanalysis-processing"
-output: html_document
+output: github_document
+ #pdf_document: default
+#  html_document: default
 date: "2023-07-24"
 ---
 
 Libraries
 
-```{r, results='hide'}
+```{r, message=F}
 # -- for spatial data
 #library(raster)   # -- old
 #library(rgdal)    # -- deprecated in 10/2023
@@ -40,7 +42,7 @@ nc.borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_
 
 #### Temperature ERA5 reanalysis
 
-Open netcdf data with all JJA ERA5 reanalysis at 10UTC (6AM) and 19UTC (3PM)
+Open netcdf data with all JJA hourly ERA5 reanalysis
 
 ```{r}
 t2m.rea <- nc_open("../input/era5_hourly_reanalysis_20220601_20220831.nc")

@@ -6,7 +6,7 @@ date: "2023-07-18"
 
 Libraries
 
-```{r, results='hide'}
+```{r, results='hide', echo=F}
 # -- for spatial data
 #library(raster)   # -- old
 #library(rgdal)    # -- deprecated in 10/2023
@@ -16,13 +16,17 @@ options("sp_evolution_status" = 2) # use sf instead of rgdal and rgeos in sp
 library(sp)
 library(terra)
 library(sf)
+library(ncdf4)
 
 # -- for timeseries
 library(lubridate)
 library(zoo)
 library(xts)
+
 # -- 
 library(ggplot2)
+library(ggspatial)
+library(tidyterra)
 library(maditr)
 library(tidyverse)
 library(viridis)
@@ -116,7 +120,7 @@ ggplot() +
 Map minimum temperatures on 2022-07-07 (one of the hottest day)
 
 ```{r, message=F}
-# -- turn into a SpatialPointDataframe to reproject CRS
+# -- turn into a sf object to reproject CRS
 aws <- st_as_sf(aws, coords=c('LONGITUDE', 'LATITUDE'))
 st_crs(aws) <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
 aws <- st_transform(aws, crs(nc.borders))
@@ -146,11 +150,19 @@ terra::writeRaster(dem, "../input/NC-DEM.tif")
 
 Plot DEM
 
-```{r}
+```{r, eval=F}
+dem <- rast("../input/NC-DEM.tif")
 plot(dem)
 ```
 
-Session info
+#### Imperviousness
+
+```{r}
+imp <- rast("../input/NC_imperviousness_2019.tif")
+plot(imp)
+```
+
+#### Session info
 
 ```{r}
 sessionInfo()

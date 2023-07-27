@@ -8,7 +8,7 @@ date: "2023-07-20"
 
 Libraries
 
-```{r, results='hide'}
+```{r, message=F}
 #library(raster)   # -- old
 #library(sp)       # -- old
 #library(rgdal)    # -- deprecated in 10/2023
@@ -18,15 +18,25 @@ library(terra)
 library(sf)
 
 library(ggplot2)
+library(ggspatial)
+library(tidyterra)
 library(rgeos)
 ```
 
+#### In this script...
+
+-   Open NC borders and 30m-imperviousness data over NC
+
+-   Compute imperviousness mean over 5km-resolution grid
+
+-   Create an urban mask defined as 5kmx5km grid cells with imperviousness \>5%
+
+-   Create a grid with 1kmx1km cells above rural areas and 200mx200m cells above urban ones
+
+### NC borders
+
 ```{r}
 nc.borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp")
-```
-
-```{r eval=FALSE}
-#beepr::beep(sound=6)
 ```
 
 Change nc.borders units (us feet to meter)
@@ -36,21 +46,230 @@ crs.meters <- "+proj=lcc +lat_0=33.75 +lon_0=-79 +lat_1=36.1666666666667 +lat_2=
 nc.borders <- project(nc.borders, crs.meters)
 ```
 
-Create a 500m-resolution raster in NC shapefile
+### 5km-resolution imperviousness grid
+
+Open and map imperviousness 30m-resolution data across NC
 
 ```{r}
-grid <- rast(ext(nc.borders), resolution = c(10000, 10000), crs = crs.meters)
-grid <- extend(grid, c(1,1))
-gridPolygon <- as.polygons(grid)
-final.grid <- intersect(gridPolygon, nc.borders)
-writeVector(final.grid, filename="../input/prediction.grid.empty.shp", overwrite=T)
+imp <- rast("../input/NC_imperviousness_2019.tif")
+imp <- project(imp, crs.meters)
+
+imp.plot <- ifel(imp==0, NA, imp)
+ggplot() +
+  geom_spatraster(data = imp.plot) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "grey", linewidth=.3, fill = NA) +
+  scale_fill_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "%"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE),
+    na.value=NA
+  ) +
+  labs(
+    fill = "",
+    title = "Prediction grid"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
 ```
 
-Map with r base plot function
+Create 5km and 10km-resolution raster in NC shapefile
+
+```{r}
+grid.10km <- rast(ext(nc.borders), resolution = c(10000, 10000), crs = crs.meters)
+grid.10km <- extend(grid.10km, c(1,1))
+grid.10km <- as.polygons(grid.10km)
+grid.10km <- terra::intersect(grid.10km, nc.borders)
+plot(grid.10km)
+
+grid.5km <- rast(ext(nc.borders), resolution = c(5000,5000), crs = crs.meters)
+grid.5km <- extend(grid.5km, c(1,1))
+grid.5km <- as.polygons(grid.5km)
+grid.5km <- terra::intersect(grid.5km, nc.borders)
+plot(grid.5km)
+```
+
+Compute and save 5kmx5km imperviousness file (each 5kmx5km cell is the mean of 30mx30m info)
 
 ```{r, eval=F}
-plot(nc.borders)
-plot(final.grid, add=T)
+imp.mean <- zonal(imp, final.grid, fun='mean', as.raster=T)
+writeRaster(imp.mean, filename="../input/NC_imperviousness_2019_5kmx5km.tif", overwrite=T)
+```
+
+Open and map the 5kmx5km imperviousness file
+
+```{r}
+imp.mean <- rast("../input/NC_imperviousness_2019_5kmx5km.tif")
+ggplot() +
+  geom_spatraster(data = imp.mean) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "white", linewidth=.3, fill = NA) +
+  scale_fill_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "%"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  labs(
+    fill = "",
+    title = "North Carolina imperviousness rate"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+```
+
+Create urban and rural masks:
+
+-   Urban pixels: 5kmx5km imperviousness \> 5%
+
+-   Urban pixels: 5kmx5km imperviousness \<= 5%
+
+```{r}
+urb.mask <- ifel(imp.mean>5, 1, NA)
+rur.mask <- ifel(imp.mean<=5, 1,NA)
+ggplot() +
+  geom_spatraster(data = urb.mask) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "grey", linewidth=.3, fill = NA) +
+  scale_fill_whitebox_c(
+    palette = "deep",
+    labels = scales::label_number(suffix = ""),
+    na.value=NA
+  ) +
+  labs(
+    fill = "",
+    title = "North Carolina urban mask"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.position = "none",
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+```
+
+Urban grid (200m-resolution)
+
+```{r}
+urb.pol <- as.polygons(urb.mask)
+urb.rast <- rast(urb.pol, resolution = c(200, 200), crs = crs.meters)
+urb.grid <- as.polygons(urb.rast)
+urb.grid <- terra::intersect(urb.grid, urb.pol)
+```
+
+Rural grid (1km-resolution)
+
+```{r}
+rur.pol <- as.polygons(rur.mask)
+rur.rast <- rast(rur.pol, resolution = c(1000, 1000), crs = crs.meters)
+rur.grid <- as.polygons(rur.rast)
+rur.grid <- terra::intersect(rur.grid, rur.pol)
+```
+
+Map final prediction grid
+
+```{r}
+m <- ggplot() +
+  geom_spatvector(data = urb.grid, color='orange', size=.1) +
+  geom_spatvector(data = rur.grid, color='green', size=.1) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "grey", linewidth=.3, fill = NA) +
+  labs(
+    fill = "",
+    title = "Prediction grid"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+m
+```
+
+Save urban and rural grid (squared polygons) and save all prediction grid as a unique dataframe (centroids of raster's polygons, coordinates in wgs84)
+
+```{r}
+urb.grid.df <- centroids(urb.grid, inside=T)
+urb.grid.df <- project(urb.grid.df, "+proj=longlat +datum=WGS84")
+#urb.grid.df <- as.data.frame(geom(urb.grid.df, xnm='lon', ynm='lat'))
+#urb.grid.df <- urb.grid.df[, c('x','y')]
+#colnames(urb.grid.df) <- c('lon', 'lat')
+#head(urb.grid.df)
+
+rur.grid.df <- centroids(rur.grid, inside=T)
+rur.grid.df <- project(rur.grid.df, "+proj=longlat +datum=WGS84")
+#rur.grid.df <- as.data.frame(geom(rur.grid.df, xnm='lon', ynm='lat'))
+#rur.grid.df <- rur.grid.df[, c('x','y')]
+#colnames(rur.grid.df) <- c('lon', 'lat')
+
+#grid.df <- rbind(urb.grid.df, rur.grid.df)
+#writeVector(grid.df, filename="../inout/empty_prediction_grid.shp", overwrite=T)
+
 ```
 
 Session info

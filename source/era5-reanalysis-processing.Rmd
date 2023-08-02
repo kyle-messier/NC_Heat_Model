@@ -66,7 +66,7 @@ Map T2M for one hour
 
 ```{r}
 # one time
-ts <- as.POSIXct("2022-08-01 11:00:00 UTC", tz='UTC')
+ts <- as.POSIXct("2022-08-02 18:00:00 UTC", tz='UTC')
 samp <- t2m[,,which(time==ts)]
 # need to add 0.25/2 to 
 samp.rast <- rast(t(samp), extent=c(-85.125,-74.875,33.375,37.125), crs='+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
@@ -117,6 +117,204 @@ t2m.vect <- as.vector(t2m[,ncol(t2m):1,])
 t2m.df <- data.frame(cbind(lon.lat.time, t2m.vect))
 colnames(t2m.df) <- c("lon", "lat", "time", 't2m')
 t2m.df$t2m <- as.numeric(t2m)
+t2m.df$time <- as.POSIXct(t2m.df$time, tz="UTC")
+pixels <- unique(t2m.df[,c('lon', 'lat')])
+pixels$geom <- index(pixels)
+t2m.df <- merge(t2m.df, pixels, by=c('lon','lat'))
+```
+
+Create a spatial point vector and keep only NC pixels
+
+```{r, eval=F}
+t2m.df$lat <- as.numeric(t2m.df$lat)
+t2m.df$lon <- as.numeric(t2m.df$lon)
+
+# select only the pixels in nc.borders shp and create a dataframe with them (pixels.df)
+pixels <- unique(t2m.df[,c('lon','lat')])
+pixels <- vect(pixels, geom=c("lon", "lat"), crs="+proj=longlat +datum=WGS84")
+plot(pixels)
+pixels <- project(pixels, crs(nc.borders))
+pixels.nc <- terra::intersect(pixels, buffer(nc.borders, 100000))
+plot(pixels.nc)
+pixels.nc <- project(pixels.nc, "+proj=longlat +datum=WGS84")
+pixels.df <- data.frame(geom(pixels.nc))[, c('geom', 'x', 'y')]
+colnames(pixels.df) <- c('geom', 'lon', 'lat')
+```
+
+Plot timeseries of one day (NC time zone = UTC-4 in summertime)
+
+```{r, eval=F}
+t2m.df <- merge(pixels.df, t2m.df, by=c('lon', 'lat'), all.y=F)
+
+ts <- as.POSIXct("2022-08-01 18:00:00 UTC", tz='UTC')
+te <- as.POSIXct("2022-08-03 06:00:00 UTC", tz='UTC')
+t2m.ts <- t2m.df[which(between(t2m.df$time, ts, te)), ]
+
+ggplot()+
+  geom_line(data=t2m.ts[which(t2m.ts$lon< (-81)),], aes(x=time, y=t2m, group=geom))
+
+ggplot()+
+  geom_line(data=t2m.ts[which(t2m.ts$lon>= (-81)),], aes(x=time, y=t2m, group=geom))
+
+ggplot()+
+  geom_line(data=t2m.ts[which(t2m.ts$lon>= (-77)),], aes(x=time, y=t2m, group=geom))
+
+
+ggplot()+
+  geom_line(data=t2m.ts[which(t2m.ts$geom %in% c(200, 300, 700, 1000)),], aes(x=time, y=t2m, group=geom, color=as.factor(geom)))
+
+```
+
+Compute TN of each day
+
+```{r}
+ts <- as.POSIXct("2022-07-31 18:00:00 UTC", tz='UTC')
+te <- as.POSIXct("2022-08-31 18:00:00 UTC", tz='UTC')
+t2m.ts <- t2m.df[which(between(t2m.df$time, ts, te)), ]
+
+dateTN <- function(x){
+  return(ifelse(hour(x)>=18, substr(x+days(1),0,10), substr(x,0,10)))
+}
+
+t2m.ts$dateTN <- lapply(t2m.ts$time, dateTN)
+t2m.ts$dateTN <- as.character(t2m.ts$dateTN)
+summary(t2m.ts[,c('t2m','dateTN', 'geom')])
+
+# transform data.frame to data.table to faster computations
+t2m.ts <- setDT(t2m.ts) 
+t2m.TN <- t2m.ts[, min(t2m), keyby=c('geom', 'dateTN', 'lon', 'lat')]
+colnames(t2m.TN) <- c("geom", "dateTN", "lon", "lat", "t2m")
+summary(t2m.TN$t2m)
+beepr::beep(1)
+
+```
+
+Compute TX of each day
+
+```{r}
+ts <- as.POSIXct("2022-08-01 06:00:00 UTC", tz='UTC')
+te <- as.POSIXct("2022-08-31 06:00:00 UTC", tz='UTC')
+t2m.ts <- t2m.df[which(between(t2m.df$time, ts, te)), ]
+
+dateTX <- function(x){
+  return(ifelse(hour(x)<6, substr(x-days(1),0,10), substr(x,0,10)))
+}
+
+t2m.ts$dateTX <- lapply(t2m.ts$time, dateTX)
+t2m.ts$dateTX <- as.character(t2m.ts$dateTX)
+summary(t2m.ts[,c('t2m','dateTX', 'geom')])
+
+# transform data.frame to data.table to faster computations
+t2m.ts <- setDT(t2m.ts) 
+t2m.TX <- t2m.ts[, max(t2m), keyby=c('geom', 'dateTX', 'lon', 'lat')]
+colnames(t2m.TX) <- c("geom", "dateTX", "lon", "lat", "t2m")
+summary(t2m.TX$t2m)
+beepr::beep(1)
+
+```
+
+Map TN for a given day
+
+```{r}
+date <- as.Date('2022-08-20')
+TN.plot <- t2m.TN[which(t2m.TN$date==date), ]
+TN.plot$lon <- as.numeric(TN.plot$lon)
+TN.plot$lat <- as.numeric(TN.plot$lat)
+TN.plot <- vect(TN.plot, geom=c('lon', 'lat'), crs="+proj=longlat +datum=WGS84")
+empty.rast <- rast(nrows=15, ncol=41, extent=c(-85.125,-74.875,33.375,37.125), crs='+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
+TN.plot <- rasterize(x=TN.plot, y=empty.rast, field='t2m')
+TN.plot <- flip(TN.plot, direction="vertical")
+
+ggplot() +
+  geom_spatraster(data = TN.plot) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "white", linewidth=.3, fill = NA) +
+  scale_fill_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "º"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  labs(
+    fill = "",
+    title = "TN North Carolina",
+    subtitle = date
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+```
+
+Map TX for a given day
+
+```{r}
+date <- as.Date('2022-08-10')
+TX.plot <- t2m.TX[which(t2m.TX$date==date), ]
+TX.plot$lon <- as.numeric(TX.plot$lon)
+TX.plot$lat <- as.numeric(TX.plot$lat)
+TX.plot <- vect(TX.plot, geom=c('lon', 'lat'), crs="+proj=longlat +datum=WGS84")
+empty.rast <- rast(nrows=15, ncol=41, extent=c(-85.125,-74.875,33.375,37.125), crs='+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
+TX.plot <- rasterize(x=TX.plot, y=empty.rast, field='t2m')
+TX.plot <- flip(TX.plot, direction="vertical")
+
+ggplot() +
+  geom_spatraster(data = TX.plot) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "white", linewidth=.3, fill = NA) +
+  scale_fill_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "º"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  labs(
+    fill = "",
+    title = "TX North Carolina",
+    subtitle = date
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+```
+
+### Check coherence with NOAA observations
+
+```{r}
+
 ```
 
 Session info

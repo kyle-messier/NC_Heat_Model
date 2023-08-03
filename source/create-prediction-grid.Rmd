@@ -21,6 +21,7 @@ library(ggplot2)
 library(ggspatial)
 library(tidyterra)
 library(rgeos)
+library(data.table) # -- for large flat datasets
 ```
 
 ### In this script...
@@ -352,8 +353,44 @@ writeVector(grid.points, "../input/prediction_grid_points_urb_rur_spatialcov.shp
 
 ## Meteorological covariates addition
 
-```{r}
+The prediction grid will be stored as a dataframe (or datatable) with columns:
 
+-   lat, lon, date
+
+-   TN, TX (varies in space and time)
+
+-   dem, imp, tcc, build.fp, build.h (varies in space)
+
+It will have 56.794.820 rows (617335 pixels and 92 days) and 10 columns.
+
+```{r}
+grid.points <- vect("../input/prediction_grid_points_urb_rur_spatialcov.shp")
+dim(grid.points)
+era5.jja.vector.TN <- rast('../input/era5_daily_reanalysis_20220601_20220831_TN.tif')
+era5.jja.vector.TX <- rast('../input/era5_daily_reanalysis_20220601_20220831_TX.tif')
+```
+
+Project ERA5 data in correct crs and extract ERA5 TN and TX at grid.points coordinates
+
+```{r}
+era5.jja.vector.TN <- project(era5.jja.vector.TN, crs.meters)
+era5.jja.vector.TN.extract <- terra::extract(era5.jja.vector.TN, grid.points) 
+era5.jja.vector.TX <- project(era5.jja.vector.TX, crs.meters)
+era5.jja.vector.TX.extract <- terra::extract(era5.jja.vector.TX, grid.points) 
+```
+
+Create the final prediction grid dataframe and save it in a .csv
+
+```{r}
+df.TN <- melt(era5.jja.vector.TN.extract, id.vars = 'ID', variable.name = 'date', value.name='TN')
+df.TX <- melt(era5.jja.vector.TX.extract, id.vars = 'ID', variable.name = 'date', value.name='TX')
+df <- merge(df.TN, df.TX, by=c('ID', 'date'))
+
+grid.points.df <- as.data.frame(grid.points)
+grid.points.df$ID <- index(grid.points.df)
+df <- merge(df, grid.points.df, by='ID')
+head(df)
+fwrite(df, '../input/prediction_grid_points_urb_rur_space_time_covariates_jja2022.csv')
 ```
 
 ### Session info

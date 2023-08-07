@@ -1,0 +1,149 @@
+---
+title: "add-covariates-noaa-observations"
+output: html_document
+date: "2023-08-03"
+---
+
+Libraries 
+
+```{r}
+library(terra)
+
+# -- for timeseries
+library(lubridate)
+```
+
+
+Open NOAA dataset
+
+```{r}
+aws <- data.table::fread("../input/NC-AWS-NOAA-dailysummary-20220601-20220831.csv") 
+length(unique(aws$STATION))
+aws <- aws[which(!(is.na(aws$TMAX)|is.na(aws$TMIN))),] 
+aws$DATE <- as.Date(aws$DATE, format = "%Y-%m-%d")
+length(unique(aws$STATION))
+
+aws.ts.tn <- maditr::dcast(aws[, c('DATE', 'STATION', 'TMIN')], DATE ~ STATION) %>%
+  as.xts() 
+nb.na.tn <- lapply(aws.ts.tn, FUN=function(x) sum(is.na(x)))  
+nb.na.tn <- as.data.frame(do.call(rbind, nb.na.tn))
+nb.na.tn <- cbind(STATION = rownames(nb.na.tn), nb.na.tn)
+rownames(nb.na.tn) <- 1:nrow(nb.na.tn)
+names(nb.na.tn)[names(nb.na.tn) == 'V1'] <- 'nb.na.tn'
+
+aws.ts.tx <- maditr::dcast(aws[, c('DATE', 'STATION', 'TMAX')], DATE ~ STATION) %>%
+  as.xts() 
+nb.na.tx <- lapply(aws.ts.tx, FUN=function(x) sum(is.na(x)))  
+nb.na.tx <- as.data.frame(do.call(rbind, nb.na.tx))
+nb.na.tx <- cbind(STATION = rownames(nb.na.tx), nb.na.tx)
+rownames(nb.na.tx) <- 1:nrow(nb.na.tx)
+names(nb.na.tx)[names(nb.na.tx) == 'V1'] <- 'nb.na.tx'
+
+stations <- unique(aws[,c('STATION', 'NAME', 'LATITUDE', 'LONGITUDE', 'ELEVATION')])
+stations <- list(stations, nb.na.tx, nb.na.tn) %>% reduce(full_join, by='STATION')
+aws <- list(aws, nb.na.tx, nb.na.tn) %>% reduce(full_join, by='STATION')
+
+# -- remove stations with >5 missing data
+aws <- aws[which(aws$nb.na.tn<=5 | aws$nb.na.tx<=5),]
+
+datatable(stations, filter = 'top')
+datatable(aws[,c('STATION', 'TMAX', 'TMIN', 'nb.na.tn', 'nb.na.tx')], filter = 'top')
+```
+
+Tranform to SpatVect and add crs
+
+```{r}
+crs.wgs84 <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
+aws <- vect(aws, geom=c('LONGITUDE', 'LATITUDE'), crs=crs.wgs84, keepgeom=T)
+stations <- vect(stations, geom=c('LONGITUDE', 'LATITUDE'), crs=crs.wgs84, keepgeom=T)
+head(stations)
+```
+
+
+Open and add covariates
+
+```{r}
+# -- imperviousness
+imp <- rast("../input/NC_imperviousness_2019.tif")
+imp <- project(imp, crs.wgs84)
+
+# -- tree canopy cover
+tcc <-  rast("../input/NC_tree-canopy-cover_2021.tif")
+tcc <- project(tcc, crs.wgs84)
+
+# -- building footprint 
+build.fp <-  rast("../input/NC_building-footprints/NorthCarolina_sum.tif")
+build.fp <- project(build.fp, crs.wgs84)
+
+# -- building height
+build.h <-  vect("../input/NC_building-height-by-block/NC_building-heights-by-block.shp")
+build.h <- project(build.h, crs.wgs84)
+
+# -- digital elevation model 
+dem <- rast("../input/NC-DEM.tif")
+dem <- project(dem, crs.wgs84)
+```
+
+Add space covariates
+
+```{r}
+stations.spatcov <- stations[, c('STATION')] 
+stations.spatcov <- terra::extract(imp, stations.spatcov, bind=T) 
+stations.spatcov <- terra::extract(tcc, stations.spatcov, fun='mean', method='bilinear', bind=T)
+stations.spatcov <- terra::extract(build.fp, stations.spatcov, fun='mean', method='bilinear', bind=T) 
+stations.spatcov <- terra::extract(dem, stations.spatcov, bind=T) 
+
+# -- build.h is a vector and not a raster, bind=T doesn't work...
+stations0 <- terra::extract(build.h[,c("Height_cat")], stations.spatcov) 
+stations.spatcov$build.h <- stations0$Height_cat
+```
+
+Add time covariates
+
+```{r}
+stations.timecov <- stations[,c('STATION')]
+era5.jja.vector.TN <- rast('../input/era5_daily_reanalysis_20220601_20220831_TN.tif')
+era5.jja.vector.TN <- project(era5.jja.vector.TN, crs.wgs84)
+stations.timecov.TN <- terra::extract(era5.jja.vector.TN, stations.timecov, bind=T) 
+
+era5.jja.vector.TX <- rast('../input/era5_daily_reanalysis_20220601_20220831_TX.tif')
+era5.jja.vector.TX <- project(era5.jja.vector.TX, crs.wgs84)
+stations.timecov.TX <- terra::extract(era5.jja.vector.TX, stations.timecov, bind=T) 
+
+df.stations.timecov.TN <- melt(setDT(as.data.frame(stations.timecov.TN)), id.vars = 'STATION', variable.name = 'DATE', value.name='TN')
+df.stations.timecov.TX <- melt(setDT(as.data.frame(stations.timecov.TX)), id.vars = 'STATION', variable.name = 'DATE', value.name='TX')
+df <- merge(df.stations.timecov.TN, df.stations.timecov.TX, by=c('STATION', 'DATE'))
+```
+
+
+Merge all extracted covariates to aws dataframe
+
+```{r}
+df$DATE <- as.Date(df$DATE)
+aws$DATE <- as.Date(aws$DATE)
+aws <- merge(df, aws, by=c('STATION','DATE'))
+
+aws <- merge(aws, stations.spatcov, by=c('STATION'))
+colnames(aws)[which(names(aws) == 'NC_imperviousness_2019')] <- 'imp'
+colnames(aws)[which(names(aws) == 'NC_tree-canopy-cover_2021')] <- 'tcc'
+colnames(aws)[which(names(aws) == 'NorthCarolina_sum')] <- 'build.fp'
+colnames(aws)[which(names(aws) == 'Layer_1')] <- 'dem'
+
+# change Fahrenheit to Celsius for TMIN and TMAX
+aws$TMIN <- round((aws$TMIN-32)*5/9,2)
+aws$TMAX <- round((aws$TMAX-32)*5/9,2)
+
+datatable(aws[,c('STATION', 'TMIN', 'TN', 'TMAX', 'TX', 'nb.na.tn', 'dem', 'imp', 'tcc', 'build.fp', 'build.h')], filter = 'top')
+```
+
+Save NOAA dataset with covariates
+
+```{r}
+fwrite(aws, "../input/NC-AWS-NOAA-dailysummary-20220601-20220831-space-time-covariates.csv")
+```
+
+```{r}
+hist(aws$TMIN-aws$TN, breaks=seq(-15,15,.5))
+hist(aws$TMAX-aws$TX, breaks=seq(-15,15,.5))
+```
+

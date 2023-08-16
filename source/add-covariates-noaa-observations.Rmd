@@ -4,7 +4,7 @@ output: html_document
 date: "2023-08-03"
 ---
 
-Libraries
+#### Libraries
 
 ```{r}
 library(terra)
@@ -14,7 +14,9 @@ library(lubridate)
 
 ```
 
-Open NOAA dataset
+## Covariates addition
+
+#### Open NOAA dataset
 
 ```{r}
 aws <- data.table::fread("../input/NC-AWS-NOAA-dailysummary-20220601-20220831.csv") 
@@ -59,7 +61,7 @@ stations <- vect(stations, geom=c('LONGITUDE', 'LATITUDE'), crs=crs.wgs84, keepg
 head(stations)
 ```
 
-Open and add covariates
+#### Open and add spatial covariates
 
 ```{r}
 # -- imperviousness
@@ -97,7 +99,7 @@ stations0 <- terra::extract(build.h[,c("Height_cat")], stations.spatcov)
 stations.spatcov$build.h <- stations0$Height_cat
 ```
 
-Add time covariates
+#### Open and add time covariates
 
 ```{r}
 stations.timecov <- stations[,c('STATION')]
@@ -136,13 +138,15 @@ aws$TMAX <- round((aws$TMAX-32)*5/9,2)
 datatable(aws[,c('STATION', 'TMIN', 'TN', 'TMAX', 'TX', 'nb.na.tn', 'dem', 'imp', 'tcc', 'build.fp', 'build.h')], filter = 'top')
 ```
 
-Save NOAA dataset with covariates
+#### Save NOAA dataset with covariates
 
 ```{r}
 fwrite(aws, "../input/NC-AWS-NOAA-dailysummary-20220601-20220831-space-time-covariates.csv")
 ```
 
-#### Check differences between NOAA temperatures and ERA5 reanalysis
+## Investigation on differences between NOAA obs and ERA5 reanalysis
+
+#### T_obs-T_era5 computation
 
 ```{r}
 aws$dTN <- aws$TMIN-aws$TN
@@ -150,6 +154,8 @@ aws$dTX <- aws$TMAX-aws$TX
 hist(aws$dTN, breaks=seq(-15,15,.5))
 hist(aws$dTX, breaks=seq(-15,15,.5))
 ```
+
+#### Data source extraction
 
 7 = COOP = U.S. Cooperative Summary of the Day \-- Transmitted via WxCoder3 (NCDC DSI-3207) <https://www.ncei.noaa.gov/access/metadata/landing-page/bin/iso?id=gov.noaa.ncdc:C00314>
 
@@ -163,7 +169,11 @@ W = WBAN = WBAN/ASOS Summary of the Day from NCDC's Integrated Surface Data (ISD
 library(stringr)
 # -- add source feature
 aws$source <- lapply(aws[,c('TMIN_ATTRIBUTES')], FUN=function(x) str_sub(x,-1,-1))
+```
 
+Map of difference between obs and reanalysis
+
+```{r}
 aws.plot <- aws
 aws.plot$dTN <- aws.plot$TMIN - aws.plot$TN
 aws.plot$dTX <- aws.plot$TMAX - aws.plot$TX
@@ -248,6 +258,8 @@ ggsave("../output/era5_observations_gap_map_TX.png", width=7, height=4, dpi=300)
 aws.plot %>% count(source) %>% as.data.frame()
 ```
 
+Same plot with reliable datasources only
+
 ```{r}
 
 ggplot()+
@@ -322,6 +334,8 @@ ggsave("../output/era5_observations_gap_map_TX_reliable_aws.png", width=7, heigh
 
 ```
 
+Boxplot per station
+
 ```{r}
 pTN <- ggplot(aws) +
   geom_boxplot(aes(y=dTN, x=STATION, group=STATION, color=source))+
@@ -348,6 +362,8 @@ library(ggpubr)
 ggarrange(pTN, pTX, nrow=2)
 ggsave("../output/error_boxplot_per_stations.png", width=15, height=7, dpi=300)
 ```
+
+Regression plots
 
 ```{r}
 ggplot(aws[which(aws$STATION %in% unique(aws$STATION)[1:40])])+
@@ -407,7 +423,7 @@ ggplot(aws)+
 ggsave("../output/scatterplot_era5_vs_obs_TX.png", width=5, height=5, dpi=300)
 ```
 
-## Technical details for observations labels 
+## Technical details for observations labels
 
 **TMAX** -- Monthly Maximum Temperature. Average of daily maximum temperature given in Fahrenheit on PDF output. CSV output is given in Fahrenheit (default) or Celsius depending on user specification. Missing if more than 5 days within the month are missing or flagged or if more than 3 consecutive values within the month are missing or flagged. 
 

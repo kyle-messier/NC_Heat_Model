@@ -4,15 +4,15 @@ output: html_document
 date: "2023-08-03"
 ---
 
-Libraries 
+Libraries
 
 ```{r}
 library(terra)
 
 # -- for timeseries
 library(lubridate)
-```
 
+```
 
 Open NOAA dataset
 
@@ -58,7 +58,6 @@ aws <- vect(aws, geom=c('LONGITUDE', 'LATITUDE'), crs=crs.wgs84, keepgeom=T)
 stations <- vect(stations, geom=c('LONGITUDE', 'LATITUDE'), crs=crs.wgs84, keepgeom=T)
 head(stations)
 ```
-
 
 Open and add covariates
 
@@ -115,7 +114,6 @@ df.stations.timecov.TX <- melt(setDT(as.data.frame(stations.timecov.TX)), id.var
 df <- merge(df.stations.timecov.TN, df.stations.timecov.TX, by=c('STATION', 'DATE'))
 ```
 
-
 Merge all extracted covariates to aws dataframe
 
 ```{r}
@@ -129,7 +127,9 @@ colnames(aws)[which(names(aws) == 'NC_tree-canopy-cover_2021')] <- 'tcc'
 colnames(aws)[which(names(aws) == 'NorthCarolina_sum')] <- 'build.fp'
 colnames(aws)[which(names(aws) == 'Layer_1')] <- 'dem'
 
-# change Fahrenheit to Celsius for TMIN and TMAX
+# -- change Fahrenheit to Celsius for TMIN and TMAX
+# -- caution: initial temperature is rounded to Fahrenheit so conversion to degree 
+# -- leads to ~.56 degree celcius precision
 aws$TMIN <- round((aws$TMIN-32)*5/9,2)
 aws$TMAX <- round((aws$TMAX-32)*5/9,2)
 
@@ -142,8 +142,311 @@ Save NOAA dataset with covariates
 fwrite(aws, "../input/NC-AWS-NOAA-dailysummary-20220601-20220831-space-time-covariates.csv")
 ```
 
+#### Check differences between NOAA temperatures and ERA5 reanalysis
+
 ```{r}
-hist(aws$TMIN-aws$TN, breaks=seq(-15,15,.5))
-hist(aws$TMAX-aws$TX, breaks=seq(-15,15,.5))
+aws$dTN <- aws$TMIN-aws$TN
+aws$dTX <- aws$TMAX-aws$TX
+hist(aws$dTN, breaks=seq(-15,15,.5))
+hist(aws$dTX, breaks=seq(-15,15,.5))
 ```
 
+7 = COOP = U.S. Cooperative Summary of the Day \-- Transmitted via WxCoder3 (NCDC DSI-3207) <https://www.ncei.noaa.gov/access/metadata/landing-page/bin/iso?id=gov.noaa.ncdc:C00314>
+
+R = USCRN =NCDC Reference Network Database (Climate Reference Network and Historical Climatology Network-Modernized) <https://www.ncei.noaa.gov/access/crn/>
+
+U = RAWS = Remote Automatic Weather Station (RAWS) data obtained from the Western Regional Climate Center <https://wrcc.dri.edu>
+
+W = WBAN = WBAN/ASOS Summary of the Day from NCDC's Integrated Surface Data (ISD). <https://www.ncei.noaa.gov/products/land-based-station/integrated-surface-database>
+
+```{r}
+library(stringr)
+# -- add source feature
+aws$source <- lapply(aws[,c('TMIN_ATTRIBUTES')], FUN=function(x) str_sub(x,-1,-1))
+
+aws.plot <- aws
+aws.plot$dTN <- aws.plot$TMIN - aws.plot$TN
+aws.plot$dTX <- aws.plot$TMAX - aws.plot$TX
+aws.plot <- aws.plot[, .(dTN = median(dTN), dTX=median(dTX)), keyby=c('STATION', 'LONGITUDE', 'LATITUDE', 'source')]
+
+aws.plot <- vect(aws.plot, geom=c('LONGITUDE', 'LATITUDE'), crs=crs.wgs84, keepgeom=T)
+
+nc.borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp") 
+
+
+aws.plot <- project(aws.plot, crs(nc.borders))
+
+ggplot()+
+geom_spatvector(data = aws.plot, 
+             aes(fill=dTN, shape=source), 
+             color='black', size=2)+
+	geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = 'black', linewidth=.3, fill = NA) +
+  scale_fill_stepsn(colours = c("navyblue","white", "red"), breaks=seq(-7,7,1), limits=c(-7,7))+
+  scale_shape_manual(values=c(21,22,23,24), labels=c('7'='COOP', 'R'='CRNHCN', 'U'='RAWS', 'W'='ISD'))+
+  labs(
+    fill = "",
+    title = 'median(TN(obs)-TN(era5))',
+    subtitle = ''
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+ggsave("../output/era5_observations_gap_map_TN.png", width=7, height=4, dpi=300)
+
+ggplot()+   
+geom_spatvector(data = aws.plot, 
+             aes(fill=dTX, shape=source), 
+             color='black', size=2)+
+	geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = 'black', linewidth=.3, fill = NA) +
+  scale_fill_stepsn(colours = c("navyblue","white", "red"), breaks=seq(-7,7,1), limits=c(-7,7))+
+  scale_shape_manual(values=c(21,22,23,24), labels=c('7'='COOP', 'R'='CRNHCN', 'U'='RAWS', 'W'='ISD'))+labs(
+    fill = "",
+    title = 'median(TX(obs)-TX(era5))',
+    subtitle = ''
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+ggsave("../output/era5_observations_gap_map_TX.png", width=7, height=4, dpi=300)
+
+aws.plot %>% count(source) %>% as.data.frame()
+```
+
+```{r}
+
+ggplot()+
+geom_spatvector(data = aws.plot[which(!(aws.plot$source %in% c('7','U'))),], 
+             aes(fill=dTN, shape=source), 
+             color='black', size=2)+
+	geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = 'black', linewidth=.3, fill = NA) +
+  scale_fill_stepsn(colours = c("navyblue","white", "red"), breaks=seq(-7,7,1), limits=c(-7,7))+
+  scale_shape_manual(values=c(21,22,23,24), labels=c('7'='COOP', 'R'='CRNHCN', 'U'='RAWS', 'W'='ISD'))+
+  labs(
+    fill = "",
+    title = 'median(TN(obs)-TN(era5))',
+    subtitle = ''
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+ggsave("../output/era5_observations_gap_map_TN_reliable_aws.png", width=7, height=4, dpi=300)
+
+
+ggplot()+   
+geom_spatvector(data = aws.plot[which(!(aws.plot$source %in% c('7','U'))),], 
+             aes(fill=dTX, shape=source), 
+             color='black', size=2)+
+	geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = 'black', linewidth=.3, fill = NA) +
+  scale_fill_stepsn(colours = c("navyblue","white", "red"), breaks=seq(-7,7,1), limits=c(-7,7))+
+  scale_shape_manual(values=c(21,22,23,24), labels=c('7'='COOP', 'R'='CRNHCN', 'U'='RAWS', 'W'='ISD'))+labs(
+    fill = "",
+    title = 'median(TX(obs)-TX(era5))',
+    subtitle = ''
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+ggsave("../output/era5_observations_gap_map_TX_reliable_aws.png", width=7, height=4, dpi=300)
+
+```
+
+```{r}
+pTN <- ggplot(aws) +
+  geom_boxplot(aes(y=dTN, x=STATION, group=STATION, color=source))+
+  scale_color_manual(values=c('lightcoral','cyan3','purple','olivedrab3'), labels=c('7'='COOP', 'R'='CRNHCN', 'U'='RAWS', 'W'='ISD'))+
+  geom_hline(aes(yintercept=0), color='red')+
+  geom_hline(aes(yintercept=1), linetype=2, color='blue')+
+  geom_hline(aes(yintercept=-1), linetype=2, color='blue')+
+  geom_hline(aes(yintercept=5), linetype=2, color='blue')+
+  geom_hline(aes(yintercept=-5), linetype=2, color='blue')+
+  theme(axis.text.x = element_blank())
+
+pTX <- ggplot(aws) +
+  geom_boxplot(aes(y=dTX, x=STATION, group=STATION, color=source))+
+  scale_color_manual(values=c('lightcoral','cyan3','purple','olivedrab3'), labels=c('7'='COOP', 'R'='CRNHCN', 'U'='RAWS', 'W'='ISD'))+
+  geom_hline(aes(yintercept=0), color='red')+
+  geom_hline(aes(yintercept=1), linetype=2, color='blue')+
+  geom_hline(aes(yintercept=-1), linetype=2, color='blue')+
+  geom_hline(aes(yintercept=5), linetype=2, color='blue')+
+  geom_hline(aes(yintercept=-5), linetype=2, color='blue')+
+  theme(axis.text.x = element_blank())
+  #theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+library(ggpubr)
+ggarrange(pTN, pTX, nrow=2)
+ggsave("../output/error_boxplot_per_stations.png", width=15, height=7, dpi=300)
+```
+
+```{r}
+ggplot(aws[which(aws$STATION %in% unique(aws$STATION)[1:40])])+
+  geom_point(aes(x=TMIN, y=TN), alpha=.5)+
+  facet_wrap(~STATION)+
+  geom_abline(intercept = 0, slope = 1, color="red", linetype="dashed", size=.5)+
+  geom_abline(intercept = 1, slope = 1, color="blue", linetype="dashed", size=.5)+
+  geom_abline(intercept = -1, slope = 1, color="blue", linetype="dashed", size=.5)+
+geom_abline(intercept = 5, slope = 1, color="blue", linetype="dashed", size=.5)+
+  geom_abline(intercept = -5, slope = 1, color="blue", linetype="dashed", size=.5)
+
+ggplot(aws[which(aws$STATION %in% unique(aws$STATION)[41:80])])+
+  geom_point(aes(x=TMIN, y=TN), alpha=.5)+
+  facet_wrap(~STATION)+
+  geom_abline(intercept = 0, slope = 1, color="red", linetype="dashed", size=.5)+
+  geom_abline(intercept = 1, slope = 1, color="blue", linetype="dashed", size=.5)+
+  geom_abline(intercept = -1, slope = 1, color="blue", linetype="dashed", size=.5)+
+geom_abline(intercept = 5, slope = 1, color="blue", linetype="dashed", size=.5)+
+  geom_abline(intercept = -5, slope = 1, color="blue", linetype="dashed", size=.5)
+
+ggplot(aws[which(aws$STATION %in% unique(aws$STATION)[81:120])])+
+  geom_point(aes(x=TMIN, y=TN), alpha=.5)+
+  facet_wrap(~STATION)+
+  geom_abline(intercept = 0, slope = 1, color="red", linetype="dashed", size=.5)+
+  geom_abline(intercept = 1, slope = 1, color="blue", linetype="dashed", size=.5)+
+  geom_abline(intercept = -1, slope = 1, color="blue", linetype="dashed", size=.5)+
+geom_abline(intercept = 5, slope = 1, color="blue", linetype="dashed", size=.5)+
+  geom_abline(intercept = -5, slope = 1, color="blue", linetype="dashed", size=.5)
+
+ggplot(aws[which(aws$STATION %in% unique(aws$STATION)[121:166])])+
+  geom_point(aes(x=TMIN, y=TN), alpha=.5)+
+  facet_wrap(~STATION)+
+  geom_abline(intercept = 0, slope = 1, color="red", linetype="dashed", size=.5)+
+  geom_abline(intercept = 1, slope = 1, color="blue", linetype="dashed", size=.5)+
+  geom_abline(intercept = -1, slope = 1, color="blue", linetype="dashed", size=.5)+
+geom_abline(intercept = 5, slope = 1, color="blue", linetype="dashed", size=.5)+
+  geom_abline(intercept = -5, slope = 1, color="blue", linetype="dashed", size=.5)
+
+ggplot(aws)+
+  geom_point(aes(x=TMIN, y=TN), alpha=.1)+
+  facet_wrap(~source)+
+  geom_abline(intercept = 0, slope = 1, color="red", linetype="dashed", size=.5)+
+  geom_abline(intercept = 1, slope = 1, color="blue", linetype="dashed", size=.5)+
+  geom_abline(intercept = -1, slope = 1, color="blue", linetype="dashed", size=.5)+
+  geom_abline(intercept = 5, slope = 1, color="blue", linetype="dashed", size=.5)+
+  geom_abline(intercept = -5, slope = 1, color="blue", linetype="dashed", size=.5)
+ggsave("../output/scatterplot_era5_vs_obs_TN.png", width=5, height=5, dpi=300)
+
+ggplot(aws)+
+  geom_point(aes(x=TMAX, y=TX), alpha=.1)+
+  facet_wrap(~source)+
+  geom_abline(intercept = 0, slope = 1, color="red", linetype="dashed", size=.5)+
+  geom_abline(intercept = 1, slope = 1, color="blue", linetype="dashed", size=.5)+
+  geom_abline(intercept = -1, slope = 1, color="blue", linetype="dashed", size=.5)+
+  geom_abline(intercept = 5, slope = 1, color="blue", linetype="dashed", size=.5)+
+  geom_abline(intercept = -5, slope = 1, color="blue", linetype="dashed", size=.5)
+ggsave("../output/scatterplot_era5_vs_obs_TX.png", width=5, height=5, dpi=300)
+```
+
+## Technical details for observations labels 
+
+**TMAX** -- Monthly Maximum Temperature. Average of daily maximum temperature given in Fahrenheit on PDF output. CSV output is given in Fahrenheit (default) or Celsius depending on user specification. Missing if more than 5 days within the month are missing or flagged or if more than 3 consecutive values within the month are missing or flagged. 
+
+**TMAX_ATTRIBUTES =** M,Q,S where: 
+
+M = GHCN-Daily Dataset Measurement Flag (values are given below in Table C) 
+
+Q = GHCN-Daily Dataset Quality Flag (values are given below in Table D) 
+
+S = GHCN-Daily Dataset Source Code (values are given below in Table B) 
+
+**TMIN** -- Monthly Minimum Temperature. Average of daily minimum temperature given in Fahrenheit units on PDF output. CSV output is given in Fahrenheit (default) or Celsius units depending on user specification. Missing if more than 5 days within the month are missing or flagged or if more than 3 consecutive values within the month are missing or flagged. 
+
+**TMIN_ATTRIBUTES =** M,Q,S where:
+
+M = GHCN-Daily Dataset Measurement Flag (values are given below in Table C) 
+
+Q = GHCN-Daily Dataset Quality Flag (values are given below in Table D)
+
+S = GHCN-Daily Dataset Source Code (values are given below in Table B) 
+
+**Table C - GHCN-Daily Dataset Measurement Flag**
+
+Blank = no measurement information applicable 
+
+H = represents highest or lowest hourly temperature (TMAX or TMIN) or the average of hourly values (TAVG) 
+
+**Table D - GHCN-Daily Dataset Quality Flags (as of 1/9/2017):**
+
+Blank = did not fail any quality assurance check 
+
+S = failed spatial consistency check 
+
+**Table B - GHCN-Daily Dataset Source Codes:**
+
+7 = U.S. Cooperative Summary of the Day \-- Transmitted via WxCoder3 (NCDC DSI-3207) <https://www.ncei.noaa.gov/access/metadata/landing-page/bin/iso?id=gov.noaa.ncdc:C00314>
+
+R = NCDC Reference Network Database (Climate Reference Network and Historical Climatology Network-Modernized) <https://www.ncei.noaa.gov/access/crn/>
+
+U = Remote Automatic Weather Station (RAWS) data obtained from the Western Regional Climate Center <https://wrcc.dri.edu>
+
+W = WBAN/ASOS Summary of the Day from NCDC's Integrated Surface Data (ISD). <https://www.ncei.noaa.gov/products/land-based-station/integrated-surface-database>

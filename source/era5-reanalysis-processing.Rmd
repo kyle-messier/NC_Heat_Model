@@ -6,7 +6,7 @@ output: github_document
 date: "2023-07-24"
 ---
 
-Librariesƒ
+#### Libraries
 
 ```{r, message=F}
 # -- for spatial data
@@ -32,6 +32,7 @@ library(tidyterra)
 library(maditr)
 library(tidyverse)
 library(viridis)
+library(DT)
 ```
 
 #### NC shapefile
@@ -39,6 +40,8 @@ library(viridis)
 ```{r, warning=FALSE}
 nc.borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp")
 ```
+
+#### Map function creation
 
 Create a function to map rasters with NC borders
 
@@ -131,12 +134,14 @@ my.map.raster.points <- function(raster, points, points.fill, date, title){
 
 ```
 
-#### Temperature ERA5 reanalysis
+## Daily summary computation
+
+#### Open and map hourly temperature ERA5 reanalysis
 
 Open netcdf data with all JJA hourly ERA5 reanalysis
 
 ```{r}
-t2m.rea <- nc_open("../input/era5_hourly_reanalysis_20220601_20220831.nc")
+t2m.rea <- nc_open("../input/era5_hourly_reanalysis_20220531_20220930.nc")
 print(t2m.rea)
 ```
 
@@ -151,6 +156,7 @@ na.value <- ncatt_get(t2m.rea, "t2m", "_FillValue")$value
 t2m[t2m==na.value] <- NA
 cat(paste('time units:', ncatt_get(t2m.rea, "time", "units")$value))
 time <- as.POSIXct(time*3600, origin="1900-01-01", tz="UTC")
+
 ```
 
 Map T2M for one hour
@@ -165,84 +171,152 @@ samp.rast <- rast(t(samp), extent=c(-85.125,-74.875,33.375,37.125), crs='+proj=l
 my.map.raster(raster=samp.rast, date=paste(ts, 'UTC'), title="T2m North Carolina")
 ```
 
-Code to create a dataframe from the netcdf
+Create a datatable from the netcdf
 
 ```{r}
-# -- /!\ latitude vector is decreasing
-lon.lat.time <- as.matrix(expand.grid(lon, rev(lat), time))
-t2m.vect <- as.vector(t2m[,ncol(t2m):1,])
-t2m.df <- data.frame(cbind(lon.lat.time, t2m.vect))
-colnames(t2m.df) <- c("lon", "lat", "time", 't2m')
-t2m.df$t2m <- as.numeric(t2m)
-t2m.df$time <- as.POSIXct(t2m.df$time, tz="UTC")
-pixels <- unique(t2m.df[,c('lon', 'lat')])
-pixels$geom <- index(pixels)
-t2m.df <- merge(t2m.df, pixels, by=c('lon','lat'))
+t2m.ts <- t2m %>% melt() %>% setDT
+t2m.ts <- t2m.ts[,.(time=time[Var3], lon=Var1, lat=Var2, t2m=value)]
+head(t2m.ts)
 ```
 
-Compute of each day
+Add pixel id (geom variable)
 
 ```{r}
-ts <- as.POSIXct("2022-06-01 18:00:00 UTC", tz='UTC')
-te <- as.POSIXct("2022-08-31 18:00:00 UTC", tz='UTC')
-t2m.ts <- t2m.df[which(between(t2m.df$time, ts, te)), ]
+pixels <- unique(t2m.ts[,c('lon', 'lat')])
+pixels$geom <- index(pixels)
+t2m.ts <- merge(t2m.ts, pixels, by=c('lon', 'lat'))
+head(t2m.ts)
+```
 
-dateTN <- function(x){
+#### Computation of daily summary
+
+TN
+
+```{r}
+ts <- as.POSIXct("2022-05-31 01:00:00 UTC", tz='UTC')
+te <- as.POSIXct("2022-09-01 23:00:00 UTC", tz='UTC')
+t2m.ts <- t2m.ts[between(time, ts, te)]
+
+# -- EDT = Eastern Daylight Time (consider clock-changing)
+# -- EST = Eastern Standard Time
+t2m.ts <- t2m.ts[, ':='(time.EDT=as.POSIXct(with_tz(time, tzone="America/New_York"), format = "%Y-%m-%d %H:%M:%s"))]
+
+# -- compute standard date for TN with WMO definition
+dateTNwmo <- function(x){
   return(ifelse(hour(x)>=18, substr(x+days(1),0,10), substr(x,0,10)))
 }
+# -- compute standard date for TN with 7am to 7am (localtime) definition 
+date7am <- function(x.EDT){
+  return(ifelse(hour(x.EDT)>=7, substr(x.EDT,0,10), substr(x.EDT-days(1),0,10)))
+}
+# -- compute standard date for TN with 12am to 12am definition
+date12am <- function(x.EDT){
+  return(substr(x.EDT,0,10))
+}
 
-t2m.ts$dateTN <- lapply(t2m.ts$time, dateTN)
-t2m.ts$dateTN <- as.character(t2m.ts$dateTN)
-summary(t2m.ts[,c('t2m','dateTN', 'geom')])
+t2m.ts <- t2m.ts[, ':='(dateTNwmo=as.character(dateTNwmo(time)),
+                        date7am=as.character(date7am(time.EDT)),
+                        date12am=as.character(date12am(time.EDT)))]
 
-# transform data.frame to data.table to faster computations
-t2m.ts <- setDT(t2m.ts) 
-t2m.TN <- t2m.ts[, min(t2m), keyby=c('geom', 'dateTN', 'lon', 'lat')]
-colnames(t2m.TN) <- c("geom", "dateTN", "lon", "lat", "t2m")
-summary(t2m.TN$t2m)
+t2m.TNwmo <- t2m.ts[, .(TNwmo=min(t2m)), keyby=c('geom', 'dateTNwmo', 'lon', 'lat')]
+t2m.TN7am <- t2m.ts[, .(TN7am=min(t2m)), keyby=c('geom', 'date7am', 'lon', 'lat')]
+t2m.TN12am <- t2m.ts[, .(TN12am=min(t2m)), keyby=c('geom', 'date12am', 'lon', 'lat')]
+
+# -- merge the 3 data.tables 
+t2m.TN <- merge(t2m.TNwmo, t2m.TN7am, 
+                by.x=c('geom', 'dateTNwmo', 'lon', 'lat'), 
+                by.y=c('geom', 'date7am', 'lon', 'lat'))
+t2m.TN <- merge(t2m.TN, t2m.TN12am, 
+                by.x=c('geom', 'dateTNwmo', 'lon', 'lat'), 
+                by.y=c('geom', 'date12am', 'lon', 'lat'))
+colnames(t2m.TN)[colnames(t2m.TN) == "dateTNwmo"] <- "date"
 t2m.TN$lon <- as.numeric(t2m.TN$lon)
 t2m.TN$lat <- as.numeric(t2m.TN$lat)
+t2m.TN$date <- ymd(t2m.TN$date)
 
+# -- remove 2022-05-31 and 2022-09-01 which are not computed properly
+t2m.TN <-  t2m.TN[!(date==ymd('2022-05-31') | date==ymd('2022-09-01'))]
+
+summary(t2m.TN)
 beepr::beep(1)
 ```
 
-Compute TX of each day
+TX
 
 ```{r}
-ts <- as.POSIXct("2022-06-01 06:00:00 UTC", tz='UTC')
-te <- as.POSIXct("2022-08-31 06:00:00 UTC", tz='UTC')
-t2m.ts <- t2m.df[which(between(t2m.df$time, ts, te)), ]
-
-dateTX <- function(x){
+# -- compute standard date for TX with WMO definition
+dateTXwmo <- function(x){
   return(ifelse(hour(x)<6, substr(x-days(1),0,10), substr(x,0,10)))
 }
 
-t2m.ts$dateTX <- lapply(t2m.ts$time, dateTX)
-t2m.ts$dateTX <- as.character(t2m.ts$dateTX)
-summary(t2m.ts[,c('t2m','dateTX', 'geom')])
+t2m.ts <- t2m.ts[, ':='(dateTXwmo=as.character(dateTXwmo(time)),
+                        date7am=as.character(date7am(time.EDT)),
+                        date12am=as.character(date12am(time.EDT)))]
 
-# transform data.frame to data.table to faster computations
-t2m.ts <- setDT(t2m.ts) 
-t2m.TX <- t2m.ts[, max(t2m), keyby=c('geom', 'dateTX', 'lon', 'lat')]
-colnames(t2m.TX) <- c("geom", "dateTX", "lon", "lat", "t2m")
-summary(t2m.TX$t2m)
+t2m.TXwmo <- t2m.ts[, .(TXwmo=max(t2m)), keyby=c('geom', 'dateTXwmo', 'lon', 'lat')]
+t2m.TX7am <- t2m.ts[, .(TX7am=max(t2m)), keyby=c('geom', 'date7am', 'lon', 'lat')]
+t2m.TX12am <- t2m.ts[, .(TX12am=max(t2m)), keyby=c('geom', 'date12am', 'lon', 'lat')]
+
+# -- merge the 3 data.tables 
+t2m.TX <- merge(t2m.TXwmo, t2m.TX7am, 
+                by.x=c('geom', 'dateTXwmo', 'lon', 'lat'), 
+                by.y=c('geom', 'date7am', 'lon', 'lat'))
+t2m.TX <- merge(t2m.TX, t2m.TX12am, 
+                by.x=c('geom', 'dateTXwmo', 'lon', 'lat'), 
+                by.y=c('geom', 'date12am', 'lon', 'lat'))
+colnames(t2m.TX)[colnames(t2m.TX) == "dateTXwmo"] <- "date"
 t2m.TX$lon <- as.numeric(t2m.TX$lon)
 t2m.TX$lat <- as.numeric(t2m.TX$lat)
+t2m.TX$date <- ymd(t2m.TX$date)
 
+# -- remove 2022-05-31 and 2022-09-01 which are not computed properly
+t2m.TX <-  t2m.TX[!(date==ymd('2022-05-31') | date==ymd('2022-09-01'))]
+
+summary(t2m.TX)
 beepr::beep(1)
 ```
 
-Merge TN and TM in the same data.frame
+Check algorithm result on a given pixel
 
 ```{r}
-colnames(t2m.TN) <- c("geom", "date", "lon", "lat", "TN")
-colnames(t2m.TX) <- c("geom", "date", "lon", "lat", "TX")
-era5.t2m <- merge(t2m.TN, t2m.TX, by=c("geom", "date", "lon", "lat"))
+ts <- as.POSIXct("2022-08-01 00:00:00 UTC", tz='UTC')
+te <- as.POSIXct("2022-08-31 00:00:00 UTC", tz='UTC')
+g <- 500
+df.plot.h <- t2m.ts[between(time, ts, te) & geom==g]
+df.plot.TX <- t2m.TX[between(as.POSIXct(date), ts, te) & geom==g]
+df.plot.TN <- t2m.TN[between(as.POSIXct(date), ts, te) & geom==g]
+
+ggplot(df.plot.h)+
+  geom_line(aes(x=time, y=t2m))+
+  geom_point(data=df.plot.TX, aes(x=as.POSIXct(date), y=TXwmo), color='red', shape=1)+
+  geom_point(data=df.plot.TX, aes(x=as.POSIXct(date), y=TX7am), color='blue', shape=4)+
+  geom_point(data=df.plot.TX, aes(x=as.POSIXct(date), y=TX12am), color='green',shape=3)+
+  geom_point(data=df.plot.TN, aes(x=as.POSIXct(date), y=TNwmo), color='orange', shape=1)+
+  geom_point(data=df.plot.TN, aes(x=as.POSIXct(date), y=TN7am), color='purple', shape=4)+
+  geom_point(data=df.plot.TN, aes(x=as.POSIXct(date), y=TN12am), color='yellow',shape=3)
+
 ```
 
-### Check coherence with NOAA observations
+Merge TN and TM in the same data.table and save it
 
-Open NOAA obs
+```{r}
+era5.t2m <- merge(t2m.TN, t2m.TX, by=c("geom", "date", "lon", "lat"))
+fwrite(era5.t2m, '../input/era5_daily_reanalysis_20220601_20220831.csv')
+```
+
+## Check coherence with NOAA observations
+
+IMPORTANT: the following code is just a first sight because the standard day chosen for the computation of TN and TX varies from one NOAA source to another:
+
+-   COOP: 7am to 7am local time
+
+-   CRN: ?
+
+-   RAWS: ?
+
+-   ASOS/WBAN: 12am to 12am local time
+
+#### Open NOAA obs
 
 ```{r}
 aws <- data.table::fread("../input/NC-AWS-NOAA-dailysummary-20220601-20220831.csv") 
@@ -274,6 +348,8 @@ aws.ts.tm <- maditr::dcast(aws[, c('DATE', 'STATION', 'TAVG')], DATE ~ STATION) 
 ```
 
 Timeseries plots
+
+***Important:** mean temperatures are missing for most of the weather stations.*
 
 ```{r}
 plot((aws.ts.tn-32)*5/9)
@@ -315,6 +391,11 @@ stations <- st_as_sf(stations, coords=c('LONGITUDE', 'LATITUDE'))
 st_crs(stations) <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
 stations <- st_transform(stations, crs(nc.borders))
 stations <- data.frame(stations)
+
+datatable(stations, filter = 'top')
+
+# -- remove stations with >5 missing data
+aws <- aws[which(aws$nb.na.tn<=5 | aws$nb.na.tx<=5),]
 ```
 
 Change aws dataframe projection
@@ -330,113 +411,167 @@ aws <- data.frame(aws)
 Function to extract a date in era5 TX and TN data.table
 
 ```{r}
-era5.date <- function(date, era5){
-  era5.date <- era5[which(era5$date==date), ]
+era5.date <- function(day, era5, field){
+  era5.date <- era5[date==day]
   era5.date <- vect(era5.date, geom=c('lon', 'lat'), crs="+proj=longlat +datum=WGS84")
-  empty.rast <- rast(nrows=15, ncol=41, extent=c(-85.125,-74.875,33.375,37.125), crs='+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
-  era5.date <- rasterize(x=era5.date, y=empty.rast, field='t2m')
-  era5.date <- flip(era5.date, direction="vertical")
+  empty.rast <- rast(nrows=16, ncol=41, extent=c(-85.12,-75.12,33.30,37.05), 
+                     crs='+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
+  era5.date <- rasterize(x=era5.date, y=empty.rast, field=field)
   era5.date <- project(era5.date, crs(nc.borders))
   return(era5.date)
 }
-
 ```
 
-Map several date examples
+#### Map several date examples
 
 ```{r}
 date <- as.Date('2022-06-06')
-my.map.raster.points(era5.date(date, t2m.TN), 
+my.map.raster.points(era5.date(date, era5.t2m, field='TNwmo'), 
                      points=aws[which(aws$DATE==date),], 
                      points.fill = (TMIN-32)*5/9, 
                      date=date, title="TN North Carolina")
-my.map.raster.points(era5.date(date, t2m.TX), 
+my.map.raster.points(era5.date(date, era5.t2m, field='TXwmo'), 
                      points=aws[which(aws$DATE==date),], 
                      points.fill = (TMAX-32)*5/9, 
                      date=date, title="TX North Carolina")
 
 date <- as.Date('2022-06-14')
-my.map.raster.points(era5.date(date, t2m.TN), 
+my.map.raster.points(era5.date(date, era5.t2m, field='TNwmo'),
                      points=aws[which(aws$DATE==date),], 
                      points.fill = (TMIN-32)*5/9, 
                      date=date, title="TN North Carolina (very high TN)")
-my.map.raster.points(era5.date(date, t2m.TX), 
+my.map.raster.points(era5.date(date, era5.t2m, field='TXwmo'),  
                      points=aws[which(aws$DATE==date),], 
                      points.fill = (TMAX-32)*5/9, 
                      date=date, title="TX North Carolina")
 
 date <- as.Date('2022-06-20')
-my.map.raster.points(era5.date(date, t2m.TN), 
+my.map.raster.points(era5.date(date, era5.t2m, field='TNwmo'),
                      points=aws[which(aws$DATE==date),], 
                      points.fill = (TMIN-32)*5/9, 
                      date=date, title="TN North Carolina")
-my.map.raster.points(era5.date(date, t2m.TX), 
+my.map.raster.points(era5.date(date, era5.t2m, field='TXwmo'),  
                      points=aws[which(aws$DATE==date),], 
                      points.fill = (TMAX-32)*5/9, 
                      date=date, title="TX North Carolina")
 
 date <- as.Date('2022-07-26')
-my.map.raster.points(era5.date(date, t2m.TN), 
+my.map.raster.points(era5.date(date, era5.t2m, field='TNwmo'),
                      points=aws[which(aws$DATE==date),], 
                      points.fill = (TMIN-32)*5/9, 
                      date=date, title="TN North Carolina (very high TN) ")
-my.map.raster.points(era5.date(date, t2m.TX), 
+my.map.raster.points(era5.date(date, era5.t2m, field='TXwmo'),  
                      points=aws[which(aws$DATE==date),], 
                      points.fill = (TMAX-32)*5/9, 
                      date=date, title="TX North Carolina")
 
 date <- as.Date('2022-07-30')
-my.map.raster.points(era5.date(date, t2m.TN), 
+my.map.raster.points(era5.date(date, era5.t2m, field='TNwmo'),
                      points=aws[which(aws$DATE==date),], 
                      points.fill = (TMIN-32)*5/9, 
                      date=date, title="TN North Carolina (very high TN)")
-my.map.raster.points(era5.date(date, t2m.TX), 
+my.map.raster.points(era5.date(date, era5.t2m, field='TXwmo'), 
+                     points=aws[which(aws$DATE==date),], 
+                     points.fill = (TMAX-32)*5/9, 
+                     date=date, title="TX North Carolina")
+
+date <- as.Date('2022-08-01')
+my.map.raster.points(era5.date(date, era5.t2m, field='TNwmo'), 
+                     points=aws[which(aws$DATE==date),], 
+                     points.fill = (TMIN-32)*5/9, 
+                     date=date, title="TN North Carolina")
+my.map.raster.points(era5.date(date, era5.t2m, field='TXwmo'), 
                      points=aws[which(aws$DATE==date),], 
                      points.fill = (TMAX-32)*5/9, 
                      date=date, title="TX North Carolina")
 
 date <- as.Date('2022-08-15')
-my.map.raster.points(era5.date(date, t2m.TN), 
+my.map.raster.points(era5.date(date, era5.t2m, field='TNwmo'), 
                      points=aws[which(aws$DATE==date),], 
                      points.fill = (TMIN-32)*5/9, 
                      date=date, title="TN North Carolina (low TN)")
-my.map.raster.points(era5.date(date, t2m.TX), 
+my.map.raster.points(era5.date(date, era5.t2m, field='TXwmo'), 
                      points=aws[which(aws$DATE==date),], 
                      points.fill = (TMAX-32)*5/9, 
                      date=date, title="TX North Carolina")
 
 ```
 
+## Save as raster .tif
+
 ```{r}
-empty.rast <- rast(nrows=15, ncol=41, extent=c(-85.125,-74.875,33.375,37.125), 
-                   crs='+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
+empty.rast <- rast(nrows=16, ncol=41, extent=c(-85.12,-75.12,33.30,37.05), 
+                     crs='+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
 date.vector <- as.vector(unique(sort(era5.t2m$date)))
-era5.jja.vector.TN <- c()
-era5.jja.vector.TX <- c()
+era5.jja.vector.TNwmo <- c()
+era5.jja.vector.TN7am <- c()
+era5.jja.vector.TN12am <- c()
+era5.jja.vector.TXwmo <- c()
+era5.jja.vector.TX7am <- c()
+era5.jja.vector.TX12am <- c()
 
 for(d in date.vector){
-  era5.d <- era5.t2m[which(era5.t2m$date==d),]
+  era5.d <- era5.t2m[date==d]
   era5.d.vect <- vect(era5.d, geom=c('lon', 'lat'), crs="+proj=longlat +datum=WGS84")
   
-  era5.d.rast.TN <- rasterize(x=era5.d.vect, y=empty.rast, field=c('TN'))
-  era5.d.rast.TN <- flip(era5.d.rast.TN, direction="vertical")
-  era5.jja.vector.TN <- c(era5.jja.vector.TN, era5.d.rast.TN)
+  era5.d.rast.TNwmo <- rasterize(x=era5.d.vect, y=empty.rast, field=c('TNwmo'))
+  era5.jja.vector.TNwmo <- c(era5.jja.vector.TNwmo, era5.d.rast.TNwmo)
   
-  era5.d.rast.TX <- rasterize(x=era5.d.vect, y=empty.rast, field=c('TX'))
-  era5.d.rast.TX <- flip(era5.d.rast.TX, direction="vertical")
-  era5.jja.vector.TX <- c(era5.jja.vector.TX, era5.d.rast.TX)
+  era5.d.rast.TN7am <- rasterize(x=era5.d.vect, y=empty.rast, field=c('TN7am'))
+  era5.jja.vector.TN7am <- c(era5.jja.vector.TN7am, era5.d.rast.TN7am)
+  
+  era5.d.rast.TN12am <- rasterize(x=era5.d.vect, y=empty.rast, field=c('TN12am'))
+  era5.jja.vector.TN12am <- c(era5.jja.vector.TN12am, era5.d.rast.TN12am)
+  
+  era5.d.rast.TXwmo <- rasterize(x=era5.d.vect, y=empty.rast, field=c('TXwmo'))
+  era5.jja.vector.TXwmo <- c(era5.jja.vector.TXwmo, era5.d.rast.TXwmo)
+  
+  era5.d.rast.TX7am <- rasterize(x=era5.d.vect, y=empty.rast, field=c('TX7am'))
+  era5.jja.vector.TX7am <- c(era5.jja.vector.TX7am, era5.d.rast.TX7am)
+  
+  era5.d.rast.TX12am <- rasterize(x=era5.d.vect, y=empty.rast, field=c('TX12am'))
+  era5.jja.vector.TX12am <- c(era5.jja.vector.TX12am, era5.d.rast.TX12am)
 }
 
-era5.jja.vector.TN <- rast(era5.jja.vector.TN)
-names(era5.jja.vector.TN) <- date.vector
-plot(subset(era5.jja.vector.TN, c(date.vector[1:5])))
+era5.jja.vector.TNwmo <- rast(era5.jja.vector.TNwmo)
+names(era5.jja.vector.TNwmo) <- date.vector
 
-era5.jja.vector.TX <- rast(era5.jja.vector.TX)
-names(era5.jja.vector.TX) <- date.vector
-plot(subset(era5.jja.vector.TX, c(date.vector[1:5])))
+era5.jja.vector.TN7am <- rast(era5.jja.vector.TN7am)
+names(era5.jja.vector.TN7am) <- date.vector
 
-writeRaster(era5.jja.vector.TN, '../input/era5_daily_reanalysis_20220601_20220831_TN.tif')
-writeRaster(era5.jja.vector.TX, '../input/era5_daily_reanalysis_20220601_20220831_TX.tif')
+era5.jja.vector.TN12am <- rast(era5.jja.vector.TN12am)
+names(era5.jja.vector.TN12am) <- date.vector
+
+era5.jja.vector.TXwmo <- rast(era5.jja.vector.TXwmo)
+names(era5.jja.vector.TXwmo) <- date.vector
+
+era5.jja.vector.TX7am <- rast(era5.jja.vector.TX7am)
+names(era5.jja.vector.TX7am) <- date.vector
+
+era5.jja.vector.TX12am <- rast(era5.jja.vector.TX12am)
+names(era5.jja.vector.TX12am) <- date.vector
+
+plot(era5.jja.vector.TNwmo[[1:4]])
+plot(era5.jja.vector.TN12am[[1:4]])
+plot(era5.jja.vector.TN7am[[1:4]])
+plot(era5.jja.vector.TXwmo[[1:4]])
+plot(era5.jja.vector.TX12am[[1:4]])
+plot(era5.jja.vector.TX7am[[1:4]])
+
+writeRaster(era5.jja.vector.TNwmo, 
+            '../input/era5_daily_reanalysis_20220601_20220831_TNwmo.tif', overwrite=T)
+writeRaster(era5.jja.vector.TXwmo, 
+            '../input/era5_daily_reanalysis_20220601_20220831_TXwmo.tif', overwrite=T)
+
+writeRaster(era5.jja.vector.TN7am, 
+            '../input/era5_daily_reanalysis_20220601_20220831_TN7am.tif', overwrite=T)
+writeRaster(era5.jja.vector.TX7am, 
+            '../input/era5_daily_reanalysis_20220601_20220831_TX7am.tif', overwrite=T)
+
+writeRaster(era5.jja.vector.TN12am, 
+            '../input/era5_daily_reanalysis_20220601_20220831_TN12am.tif', overwrite=T)
+writeRaster(era5.jja.vector.TX12am, 
+            '../input/era5_daily_reanalysis_20220601_20220831_TX12am.tif', overwrite=T)
 ```
 
 Session info

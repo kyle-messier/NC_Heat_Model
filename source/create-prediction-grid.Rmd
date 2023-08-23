@@ -42,7 +42,9 @@ library(data.table) # -- for large flat datasets
 
 -   Digital Elevation Model (DEM)
 
--   Meteorological covariates (pb evolves in time)
+-   Meteorological covariates
+
+#### 3) Save prediction grid with space-time covariates in a datatable
 
 ## Empty grid creation
 
@@ -124,7 +126,7 @@ plot(grid.5km)
 Compute and save 5kmx5km imperviousness file (each 5kmx5km cell is the mean of 30mx30m info)
 
 ```{r, eval=F}
-imp.mean <- zonal(imp, final.grid, fun='mean', as.raster=T)
+imp.mean <- zonal(imp, grid.5km, fun='mean', as.raster=T)
 writeRaster(imp.mean, filename="../input/NC_imperviousness_2019_5kmx5km.tif", overwrite=T)
 ```
 
@@ -269,9 +271,13 @@ Save urban and rural grid (squared polygons) and save all prediction grid as a u
 ```{r}
 urb.grid.df <- centroids(urb.grid, inside=T)
 rur.grid.df <- centroids(rur.grid, inside=T)
+urb.grid.df$geo <- 'urb'
+rur.grid.df$geo <- 'rur'
 grid.points <- rbind(urb.grid.df, rur.grid.df)
 grid.points <- project(grid.points, crs.meters)
-writeVector(grid.points, "../input/prediction_grid_points_urb_rur_empty.shp")
+# -- keep only the geo covariate
+grid.points <- grid.points %>% select(geo)
+writeVector(grid.points, "../input/prediction_grid_points_urb_rur_empty.shp", overwrite=T)
 ```
 
 ## Spatial covariates addition
@@ -292,66 +298,105 @@ ext.rtp <- project(ext.rtp, crs(nc.borders))
 ext(ext.rtp)
 ```
 
-### Imperviousness
+#### Open covariates projected on crs.meters
 
 ```{r}
-imp.extract <- terra::extract(imp, grid.points, ID=T) 
+imp <- rast("../input/NC_imperviousness_2019_crs-meters.tif")
+tcc <-  rast("../input/NC_tree-canopy-cover_2021_crs-meters.tif")
+build.fp <-  rast("../input/NC_building-footprints/NorthCarolina_sum_crs-meters.tif")
+build.h <-  vect("../input/NC_building-height-by-block/NC_building-heights-by-block_crs-meters.shp")
+dem <- rast("../input/NC-DEM_crs-meters.tif")
 ```
 
-### Tree canopy cover
-
-To extract tree canopy cover (tcc), we use the bilinear method: values are interpolated from the values of the four nearest raster cells.
+#### Extract at each grid point
 
 ```{r}
-tcc <-  rast("../input/NC_tree-canopy-cover_2021.tif")
-tcc <- project(tcc, crs.meters)
-tcc.extract <- terra::extract(tcc, grid.points, fun='mean', method='bilinear') 
-tcc.extract.raw <- terra::extract(tcc, grid.points) 
+grid.spatcov <- grid.points
+grid.spatcov <- terra::extract(imp, grid.points, bind=T) 
+grid.spatcov <- terra::extract(tcc, grid.spatcov, fun=function(x) mean(x, na.rm=T), method='bilinear', bind=T)
+grid.spatcov <- terra::extract(build.fp, grid.spatcov, fun='mean', method='bilinear', bind=T)
+grid.spatcov <- terra::extract(dem, grid.spatcov, bind=T) 
+
+# -- build.h is a vector and not a raster, bind=T doesn't work...
+grid0 <- terra::extract(build.h[,c("Height_cat")], grid.points) 
+grid.spatcov$build.h <- grid0$Height_cat
 ```
 
-### Building footprint
-
-Important: it sounds like there are missing tiles in the data. An explanation can be found in the paper Heris, M.P., Foks, N., Bagstad, K., and Troy, A., 2020, A national dataset of rasterized building footprints for the U.S.: U.S. Geological Survey data release, <https://doi.org/10.5066/P9J2Y1WG.>:
-
-"*We also identified systematic gaps in the Microsoft data for some geographic areas. These larger gaps seem to have a tile pattern, where aerial photos may have been unavailable to the Microsoft building detection algorithm"*
-
-Their computational algorithm is applied to Microsoft released a U.S.-wide vector building dataset provided in 2018 but this dataset has missing tiles.
+#### Rename covariates
 
 ```{r}
-build.fp <-  rast("../input/NC_building-footprints/NorthCarolina_sum.tif")
-build.fp <- project(build.fp, crs.meters)
-build.fp.extract <- terra::extract(build.fp, grid.points, fun='mean', method='bilinear') 
+grid.spatcov <- grid.spatcov %>% rename(
+  imp = 'NC_imperviousness_2019',
+  tcc = 'NC_tree-canopy-cover_2021',
+  build.fp = 'NorthCarolina_sum', 
+  dem = 'Layer_1'
+)
+
+summary(grid.spatcov)
 ```
 
-### Building height
+## Temporal covariates addition
+
+TN with WMO standards
 
 ```{r}
-build.h <-  vect("../input/NC_building-height-by-block/NC_building-heights-by-block.shp")
-build.h <- project(build.h, crs.meters)
-build.h.extract <- terra::extract(build.h, grid.points) 
-head(build.h.extract)
+v <- data.frame(cbind(lon=geom(grid.points)[,'x'], lat=geom(grid.points)[,'y']))
+grid.timecov <- vect(v, geom=c('lon', 'lat'))
+grid.timecov$geom <- geom(grid.timecov)[, 'geom']
+era5.jja.vector.TNwmo <- rast('../input/era5_daily_reanalysis_20220601_20220831_TNwmo.tif')
+era5.jja.vector.TN7am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TN7am.tif')
+era5.jja.vector.TN12am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TN12am.tif')
+
+era5.jja.vector.TNwmo <- project(era5.jja.vector.TNwmo, crs.meters)
+era5.jja.vector.TN7am <- project(era5.jja.vector.TN7am, crs.meters)
+era5.jja.vector.TN12am <- project(era5.jja.vector.TN12am, crs.meters)
+
+grid.timecov.TNwmo <- terra::extract(era5.jja.vector.TNwmo, grid.timecov, bind=T) 
+grid.timecov.TN7am <- terra::extract(era5.jja.vector.TN7am, grid.timecov, bind=T) 
+grid.timecov.TN12am <- terra::extract(era5.jja.vector.TN12am, grid.timecov, bind=T) 
+
+era5.jja.vector.TXwmo <- rast('../input/era5_daily_reanalysis_20220601_20220831_TXwmo.tif')
+era5.jja.vector.TX7am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TX7am.tif')
+era5.jja.vector.TX12am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TX12am.tif')
+
+era5.jja.vector.TXwmo <- project(era5.jja.vector.TXwmo, crs.meters)
+era5.jja.vector.TX7am <- project(era5.jja.vector.TX7am, crs.meters)
+era5.jja.vector.TX12am <- project(era5.jja.vector.TX12am, crs.meters)
+
+grid.timecov.TXwmo <- terra::extract(era5.jja.vector.TXwmo, grid.timecov, bind=T) 
+grid.timecov.TX7am <- terra::extract(era5.jja.vector.TX7am, grid.timecov, bind=T) 
+grid.timecov.TX12am <- terra::extract(era5.jja.vector.TX12am, grid.timecov, bind=T) 
+
+df.grid.timecov.TNwmo <- melt(setDT(as.data.frame(grid.timecov.TNwmo)), id.vars = 'geom', variable.name = 'DATE', value.name='TNwmo')
+df.grid.timecov.TN7am <- melt(setDT(as.data.frame(grid.timecov.TN7am)), id.vars = 'geom', variable.name = 'DATE', value.name='TN7am')
+df.grid.timecov.TN12am <- melt(setDT(as.data.frame(grid.timecov.TN12am)), id.vars = 'geom', variable.name = 'DATE', value.name='TN12am')
+df.grid.timecov.TXwmo <- melt(setDT(as.data.frame(grid.timecov.TXwmo)), id.vars = 'geom', variable.name = 'DATE', value.name='TXwmo')
+df.grid.timecov.TX7am <- melt(setDT(as.data.frame(grid.timecov.TX7am)), id.vars = 'geom', variable.name = 'DATE', value.name='TX7am')
+df.grid.timecov.TX12am <- melt(setDT(as.data.frame(grid.timecov.TX12am)), id.vars = 'geom', variable.name = 'DATE', value.name='TX12am')
+
+dt.time <- merge(df.grid.timecov.TNwmo, df.grid.timecov.TN7am, by=c('geom', 'DATE'))
+dt.time <- merge(dt.time, df.grid.timecov.TN12am, by=c('geom', 'DATE'))
+dt.time <- merge(dt.time, df.grid.timecov.TXwmo, by=c('geom', 'DATE'))
+dt.time <- merge(dt.time, df.grid.timecov.TX7am, by=c('geom', 'DATE'))
+dt.time <- merge(dt.time, df.grid.timecov.TX12am, by=c('geom', 'DATE'))
 ```
 
-### Digital Elevation Model
+## Merge spatial and temporal covariates
+
+Reproject grid points, add lat, lon, geom and transform to data.table
 
 ```{r}
-dem <- rast("../input/NC-DEM.tif")
-dem <- project(dem, crs.meters)
-dem.extract <- terra::extract(dem, grid.points, ID=T) 
-head(dem.extract)
+crs.wgs84 <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
+grid.spatcov <- project(grid.spatcov, crs.wgs84)
+grid.spatcov$geom <- geom(grid.spatcov)[, 'geom']
+grid.spatcov$lon <- geom(grid.spatcov)[, 'x']
+grid.spatcov$lat <- geom(grid.spatcov)[, 'y']
+dt.spat <- setDT(as.data.frame(grid.spatcov))
 ```
-
-Merge all in grid.points vector
 
 ```{r}
-cov.df <- cbind(dem.extract$Layer_1, imp.extract$NC_imperviousness_2019, tcc.extract$`NC_tree-canopy-cover_2021`, build.fp.extract$NorthCarolina_sum, build.h.extract$Height_cat)
-colnames(cov.df) <- c("dem", "imp", "tcc", "build.fp", "build.h")
-values(grid.points) <- as.data.frame(cov.df)
-head(grid.points)
-writeVector(grid.points, "../input/prediction_grid_points_urb_rur_spatialcov.shp")
+grid.spattimecov <- merge(dt.spat, dt.time, by=c('geom'))
 ```
-
-## Meteorological covariates addition
 
 The prediction grid will be stored as a dataframe (or datatable) with columns:
 
@@ -364,34 +409,10 @@ The prediction grid will be stored as a dataframe (or datatable) with columns:
 It will have 56.794.820 rows (617335 pixels and 92 days) and 10 columns.
 
 ```{r}
-grid.points <- vect("../input/prediction_grid_points_urb_rur_spatialcov.shp")
-dim(grid.points)
-era5.jja.vector.TN <- rast('../input/era5_daily_reanalysis_20220601_20220831_TN.tif')
-era5.jja.vector.TX <- rast('../input/era5_daily_reanalysis_20220601_20220831_TX.tif')
+fwrite(grid.spattimecov, '../input/prediction_grid_points_urb_rur_space_time_covariates_jja2022.csv')
 ```
 
-Project ERA5 data in correct crs and extract ERA5 TN and TX at grid.points coordinates
-
-```{r}
-era5.jja.vector.TN <- project(era5.jja.vector.TN, crs.meters)
-era5.jja.vector.TN.extract <- terra::extract(era5.jja.vector.TN, grid.points) 
-era5.jja.vector.TX <- project(era5.jja.vector.TX, crs.meters)
-era5.jja.vector.TX.extract <- terra::extract(era5.jja.vector.TX, grid.points) 
-```
-
-Create the final prediction grid dataframe and save it in a .csv
-
-```{r}
-df.TN <- melt(era5.jja.vector.TN.extract, id.vars = 'ID', variable.name = 'date', value.name='TN')
-df.TX <- melt(era5.jja.vector.TX.extract, id.vars = 'ID', variable.name = 'date', value.name='TX')
-df <- merge(df.TN, df.TX, by=c('ID', 'date'))
-
-grid.points.df <- as.data.frame(grid.points)
-grid.points.df$ID <- index(grid.points.df)
-df <- merge(df, grid.points.df, by='ID')
-head(df)
-fwrite(df, '../input/prediction_grid_points_urb_rur_space_time_covariates_jja2022.csv')
-```
+------------------------------------------------------------------------
 
 ### Session info
 

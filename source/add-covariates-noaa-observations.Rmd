@@ -8,10 +8,20 @@ date: "2023-08-03"
 
 ```{r}
 library(terra)
+library(sf)
+
+library(ggplot2)
+library(ggspatial)
+library(tidyterra)
+library(rgeos)
+library(data.table) # -- for large flat datasets
+library(DT)
 
 # -- for timeseries
 library(lubridate)
+library(xts)
 
+library(purrr)
 ```
 
 ## Covariates addition
@@ -65,24 +75,15 @@ head(stations)
 
 ```{r}
 # -- imperviousness
-imp <- rast("../input/NC_imperviousness_2019.tif")
-imp <- project(imp, crs.wgs84)
-
+imp <- rast("../input/NC_imperviousness_2019_crs-wgs84.tif")
 # -- tree canopy cover
-tcc <-  rast("../input/NC_tree-canopy-cover_2021.tif")
-tcc <- project(tcc, crs.wgs84)
-
+tcc <-  rast("../input/NC_tree-canopy-cover_2021_crs-wgs84.tif")
 # -- building footprint 
-build.fp <-  rast("../input/NC_building-footprints/NorthCarolina_sum.tif")
-build.fp <- project(build.fp, crs.wgs84)
-
+build.fp <-  rast("../input/NC_building-footprints/NorthCarolina_sum_crs-wgs84.tif")
 # -- building height
-build.h <-  vect("../input/NC_building-height-by-block/NC_building-heights-by-block.shp")
-build.h <- project(build.h, crs.wgs84)
-
+build.h <-  vect("../input/NC_building-height-by-block/NC_building-heights-by-block_crs-wgs84.shp")
 # -- digital elevation model 
-dem <- rast("../input/NC-DEM.tif")
-dem <- project(dem, crs.wgs84)
+dem <- rast("../input/NC-DEM_crs-wgs84.tif")
 ```
 
 Add space covariates
@@ -103,23 +104,48 @@ stations.spatcov$build.h <- stations0$Height_cat
 
 ```{r}
 stations.timecov <- stations[,c('STATION')]
-era5.jja.vector.TN <- rast('../input/era5_daily_reanalysis_20220601_20220831_TN.tif')
-era5.jja.vector.TN <- project(era5.jja.vector.TN, crs.wgs84)
-stations.timecov.TN <- terra::extract(era5.jja.vector.TN, stations.timecov, bind=T) 
+era5.jja.vector.TNwmo <- rast('../input/era5_daily_reanalysis_20220601_20220831_TNwmo.tif')
+era5.jja.vector.TN7am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TN7am.tif')
+era5.jja.vector.TN12am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TN12am.tif')
 
-era5.jja.vector.TX <- rast('../input/era5_daily_reanalysis_20220601_20220831_TX.tif')
-era5.jja.vector.TX <- project(era5.jja.vector.TX, crs.wgs84)
-stations.timecov.TX <- terra::extract(era5.jja.vector.TX, stations.timecov, bind=T) 
+era5.jja.vector.TNwmo <- project(era5.jja.vector.TNwmo, crs.wgs84)
+era5.jja.vector.TN7am <- project(era5.jja.vector.TN7am, crs.wgs84)
+era5.jja.vector.TN12am <- project(era5.jja.vector.TN12am, crs.wgs84)
 
-df.stations.timecov.TN <- melt(setDT(as.data.frame(stations.timecov.TN)), id.vars = 'STATION', variable.name = 'DATE', value.name='TN')
-df.stations.timecov.TX <- melt(setDT(as.data.frame(stations.timecov.TX)), id.vars = 'STATION', variable.name = 'DATE', value.name='TX')
-df <- merge(df.stations.timecov.TN, df.stations.timecov.TX, by=c('STATION', 'DATE'))
+stations.timecov.TNwmo <- terra::extract(era5.jja.vector.TNwmo, stations.timecov, bind=T) 
+stations.timecov.TN7am <- terra::extract(era5.jja.vector.TN7am, stations.timecov, bind=T) 
+stations.timecov.TN12am <- terra::extract(era5.jja.vector.TN12am, stations.timecov, bind=T) 
+
+era5.jja.vector.TXwmo <- rast('../input/era5_daily_reanalysis_20220601_20220831_TXwmo.tif')
+era5.jja.vector.TX7am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TX7am.tif')
+era5.jja.vector.TX12am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TX12am.tif')
+
+era5.jja.vector.TXwmo <- project(era5.jja.vector.TXwmo, crs.wgs84)
+era5.jja.vector.TX7am <- project(era5.jja.vector.TX7am, crs.wgs84)
+era5.jja.vector.TX12am <- project(era5.jja.vector.TX12am, crs.wgs84)
+
+stations.timecov.TXwmo <- terra::extract(era5.jja.vector.TXwmo, stations.timecov, bind=T) 
+stations.timecov.TX7am <- terra::extract(era5.jja.vector.TX7am, stations.timecov, bind=T) 
+stations.timecov.TX12am <- terra::extract(era5.jja.vector.TX12am, stations.timecov, bind=T) 
+
+df.stations.timecov.TNwmo <- melt(setDT(as.data.frame(stations.timecov.TNwmo)), id.vars = 'STATION', variable.name = 'DATE', value.name='TNwmo')
+df.stations.timecov.TN7am <- melt(setDT(as.data.frame(stations.timecov.TN7am)), id.vars = 'STATION', variable.name = 'DATE', value.name='TN7am')
+df.stations.timecov.TN12am <- melt(setDT(as.data.frame(stations.timecov.TN12am)), id.vars = 'STATION', variable.name = 'DATE', value.name='TN12am')
+df.stations.timecov.TXwmo <- melt(setDT(as.data.frame(stations.timecov.TXwmo)), id.vars = 'STATION', variable.name = 'DATE', value.name='TXwmo')
+df.stations.timecov.TX7am <- melt(setDT(as.data.frame(stations.timecov.TX7am)), id.vars = 'STATION', variable.name = 'DATE', value.name='TX7am')
+df.stations.timecov.TX12am <- melt(setDT(as.data.frame(stations.timecov.TX12am)), id.vars = 'STATION', variable.name = 'DATE', value.name='TX12am')
+
+df <- merge(df.stations.timecov.TNwmo, df.stations.timecov.TN7am, by=c('STATION', 'DATE'))
+df <- merge(df, df.stations.timecov.TN12am, by=c('STATION', 'DATE'))
+df <- merge(df, df.stations.timecov.TXwmo, by=c('STATION', 'DATE'))
+df <- merge(df, df.stations.timecov.TX7am, by=c('STATION', 'DATE'))
+df <- merge(df, df.stations.timecov.TX12am, by=c('STATION', 'DATE'))
 ```
 
 Merge all extracted covariates to aws dataframe
 
 ```{r}
-df$DATE <- as.Date(df$DATE)
+df$DATE <- as.Date(as.numeric(df$DATE), origin="2022-06-01")
 aws$DATE <- as.Date(aws$DATE)
 aws <- merge(df, aws, by=c('STATION','DATE'))
 
@@ -135,7 +161,7 @@ colnames(aws)[which(names(aws) == 'Layer_1')] <- 'dem'
 aws$TMIN <- round((aws$TMIN-32)*5/9,2)
 aws$TMAX <- round((aws$TMAX-32)*5/9,2)
 
-datatable(aws[,c('STATION', 'TMIN', 'TN', 'TMAX', 'TX', 'nb.na.tn', 'dem', 'imp', 'tcc', 'build.fp', 'build.h')], filter = 'top')
+datatable(aws[,c('STATION', 'TMIN', 'TNwmo', 'TMAX', 'TXwmo', 'nb.na.tn', 'dem', 'imp', 'tcc', 'build.fp', 'build.h')], filter = 'top')
 ```
 
 #### Save NOAA dataset with covariates

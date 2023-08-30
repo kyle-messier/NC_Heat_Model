@@ -6,7 +6,7 @@ date: "2023-08-25"
 
 #### Libraries
 
-```{r}
+```{r, message=F}
 library(terra)
 library(sf)
 library(sftime)
@@ -44,9 +44,10 @@ colnames(eco) <- c('date', 'tmax', 'tmin', 'station', 'network', 'city', 'county
 eco[eco=='QCF'] <- NA
 eco$tmax <- as.numeric(eco$tmax)
 eco$tmin <- as.numeric(eco$tmin)
-eco$date <- as.date(eco$date, format = "%Y-%m-%d")
+eco$date <- as.Date(eco$date, format = "%Y-%m-%d")
 eco <- st_as_sftime(eco, 
                     coords=c('lon', 'lat'),
+                    remove=F,
                     crs="+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
                     time_column_name='date')
 ```
@@ -83,17 +84,17 @@ ggplot(eco)+
   theme(legend.text=element_blank())
 
 ggplot(eco)+
-  geom_point(aes(x=date, y=station, color=is.na(tmin)))+
+  geom_point(aes(x=date, y=station, color=is.na(tmin)), shape=15, linewidth=.5)+
   scale_color_manual(values=c("grey", "red"))+
   theme(legend.text=element_blank())
 
 ggplot(eco)+
-  geom_point(aes(x=date, y=station, color=is.na(tmax)))+
+  geom_point(aes(x=date, y=station, color=is.na(tmax)), shape=15, linewidth=.5)+
   scale_color_manual(values=c("grey", "red"))+
   theme(legend.text=element_blank())
 
 ggplot(eco)+
-  geom_point(aes(x=date, y=station, color=tmin), shape=15, linewidth=1)+
+  geom_point(aes(x=date, y=station, color=tmin), shape=15, linewidth=.5)+
   scale_color_whitebox_c(
     palette = "muted",
     labels = scales::label_number(suffix = "ºC"),
@@ -102,7 +103,7 @@ ggplot(eco)+
   ) 
 
 ggplot(eco)+
-  geom_point(aes(x=date, y=station, color=tmax), shape=15, linewidth=1)+
+  geom_point(aes(x=date, y=station, color=tmax), shape=15, linewidth=.5)+
   scale_color_whitebox_c(
     palette = "muted",
     labels = scales::label_number(suffix = "ºC"),

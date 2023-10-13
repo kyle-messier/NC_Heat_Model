@@ -76,7 +76,7 @@ geom_point(data = eco.plot,
 
 ```
 
-#### Time series 
+#### Time series
 
 ```{r}
 ggplot(eco)+

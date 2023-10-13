@@ -1,5 +1,5 @@
 ---
-title: "kriging"
+title: "space-time kriging"
 output: html_document
 date: "2023-08-29"
 ---
@@ -12,7 +12,7 @@ library(data.table)
 library(terra) 
 library(sf)
 library(sftime)
-
+library(tidyverse)
 library(ggplot2)
 library(ggspatial)
 library(tidyterra)
@@ -70,7 +70,6 @@ obs.p.sft <- st_transform(obs.p.sft, crs.meters)
 pred.p.sft <- st_transform(pred.p.sft, crs.meters)
 
 # -- store c(lon,lat) columns in crs.meters (instead of wgs84) 
-library(tidyverse)
 obs.p.sft <- obs.p.sft %>%
     mutate(lon = unlist(map(obs.p.sft$geometry,1)),
            lat = unlist(map(obs.p.sft$geometry,2)))
@@ -107,10 +106,10 @@ obs.STFDF <- as(obs.STFDF,'STFDF')
 Directions: 0=north, 90=east, 180=south, 270=west
 
 ```{r}
-cutoff=10000 
-width=1000
+cutoff=30000 
+width=3000
 
-plot(variogram(tmin ~ 1, obs.STFDF, cutoff=cutoff, width=width, tlags=0:8), main='sample semivariogram')
+plot(variogram(tmin ~ 1, obs.STFDF, cutoff=cutoff, width=width, tlags=0:8, alpha=180), wireframe=T, main='sample semivariogram')
 ```
 
 TOBECONTINUEDDDDD

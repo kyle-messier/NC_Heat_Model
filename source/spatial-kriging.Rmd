@@ -354,7 +354,82 @@ ggplot() +
 			panel.background = element_rect(fill = "white"),
 			panel.grid.major=element_line(colour="grey")
 		)
+```
 
+10-fold cross validation
+
+```{r}
+uk.loocv <- krige.cv(tmin ~ dem + imp + tcc + build.fp, obs.d, v.fit, nfold=nrow(obs.d))
+uk.loocv
+uk.10cv <- krige.cv(tmin ~ dem + imp + tcc + build.fp, obs.d, v.fit, nfold=10)
+uk.10cv
+```
+
+RMSE computation
+
+```{r}
+RMSE.loocv <- sqrt(sum(uk.loocv$residual**2)/nrow(uk.loocv))
+RMSE.10cv <- sqrt(sum(uk.10cv$residual**2)/nrow(uk.10cv))
+cat('RMSE with loocv:', RMSE.loocv, '°C\n')
+cat('RMSE with 10cv: ', RMSE.10cv, '°C')
+```
+
+Residuals
+
+```{r}
+ggplot(uk.loocv)+
+  geom_point(aes(y=var1.pred, x=observed))+
+  geom_abline(aes(slope=1, intercept=0), color='red')
+
+ggplot(uk.10cv)+
+  geom_point(aes(y=var1.pred, x=observed))+
+  geom_abline(aes(slope=1, intercept=0), color='red')
+
+pal.res <- RColorBrewer::brewer.pal(10, "RdBu")
+
+ggplot()+
+  geom_sf(data = uk.loocv, aes(geometry=geometry, color=residual)) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "grey", linewidth=.3, fill = NA) +
+  scale_color_steps2(low='blue', mid='white', high='red', limits=c(-5,5), n.breaks=10)+
+  theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+
+ggplot()+
+  geom_sf(data = uk.10cv, aes(geometry=geometry, color=residual)) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "grey", linewidth=.3, fill = NA) +
+  scale_color_steps2(low='blue', mid='white', high='red', limits=c(-5,5), n.breaks=10)+
+  theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
 
 ```
 
+```{r}
+head(uk.loocv)
+ggplot()+
+  geom_sf(data = uk.10cv, aes(geometry=geometry, color=fold))+
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "grey", linewidth=.3, fill = NA) +
+  theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+  
+```

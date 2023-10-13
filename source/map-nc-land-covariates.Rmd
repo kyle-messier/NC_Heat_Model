@@ -15,7 +15,6 @@ Libraries
 options("sp_evolution_status" = 2) # use sf instead of rgdal and rgeos in sp
 library(sp)
 library(terra)
-library(sf)
 library(ncdf4)
 
 # -- for timeseries
@@ -70,7 +69,7 @@ names(nb.na.tx)[names(nb.na.tx) == 'V1'] <- 'nb.na.tx'
 Daily min temperatures
 
 ```{r, message=FALSE}
-aws.ts.tn <- maditr::dcast(aws[, c('DATE', 'STATION', 'TMAX')], DATE ~ STATION) %>%
+aws.ts.tn <- maditr::dcast(aws[, c('DATE', 'STATION', 'TMIN')], DATE ~ STATION) %>%
   as.xts() 
 #plot(aws.ts.tn)
 boxplot(t(aws.ts.tx))
@@ -85,7 +84,7 @@ names(nb.na.tn)[names(nb.na.tn) == 'V1'] <- 'nb.na.tn'
 Daily mean temperatures
 
 ```{r, message=FALSE}
-aws.ts.tm <- maditr::dcast(aws[, c('DATE', 'STATION', 'TMAX')], DATE ~ STATION) %>%
+aws.ts.tm <- maditr::dcast(aws[, c('DATE', 'STATION', 'TAVG')], DATE ~ STATION) %>%
   as.xts() 
 plot(aws.ts.tm)
 

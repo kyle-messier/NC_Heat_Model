@@ -156,7 +156,6 @@ na.value <- ncatt_get(t2m.rea, "t2m", "_FillValue")$value
 t2m[t2m==na.value] <- NA
 cat(paste('time units:', ncatt_get(t2m.rea, "time", "units")$value))
 time <- as.POSIXct(time*3600, origin="1900-01-01", tz="UTC")
-
 ```
 
 Map T2M for one hour
@@ -502,7 +501,7 @@ my.map.raster.points(era5.date(date, era5.t2m, field='TXwmo'),
 ```{r}
 empty.rast <- rast(nrows=16, ncol=41, extent=c(-85.12,-75.12,33.30,37.05), 
                      crs='+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0')
-date.vector <- as.vector(unique(sort(era5.t2m$date)))
+date.vector <- as.character(unique(sort(era5.t2m$date)))
 era5.jja.vector.TNwmo <- c()
 era5.jja.vector.TN7am <- c()
 era5.jja.vector.TN12am <- c()

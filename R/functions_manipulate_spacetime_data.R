@@ -94,6 +94,7 @@ project_dt <- function(datatable, crs_ori, crs_dest) {
 #' @param crs A character containing the crs of spatial data
 #' @returns same datatable object with "county" columns
 add_nc_county <- function(datatable, crs) {
+  if (class(crs) != "character") {stop("crs is not a character")}
   nc_borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp")
   if (crs(nc_borders) != crs) {
     nc_borders <- project(nc_borders, crs)

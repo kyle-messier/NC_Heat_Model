@@ -10,29 +10,26 @@ library(tidyterra)
 library(rgeos)
 library(data.table) # -- for large flat datasets
 library(DT)
-
 library(styler)
-
-
-
-
 
 #' Create a sftime object from a data.table
 #'
 #' @param datatable A data.table object with columns "lat", "lon", "date"
-#' @param crs_ori A character containing the original crs
-#' @param crs_dest A character containing the distination crs 
+#' @param crs A character containing the original crs
 #' @returns an sftime object
-
 create_sftime <- function(datatable, crs) {
+  if (!("data.table" %in% class(datatable))) {
+    stop("datatable is not a data.table")
+  }
+  if (class(crs) != "character") {stop("crs is not a character")}
   if (!("lon" %in% colnames(datatable))) {
-    stop('"lon" column missing')
+    stop("datatable does not contain lon column")
   }
   if (!("lat" %in% colnames(datatable))) {
-    stop('"lat" column missing')
+    stop("datatable does not contain lat column")
   }
   if (!("date" %in% colnames(datatable))) {
-    stop('"date" column missing')
+    stop("datatable does not contain date column")
   }
   
   datatable$date <- as.Date(datatable$date)
@@ -42,17 +39,25 @@ create_sftime <- function(datatable, crs) {
                            crs = crs_ori,
                            time_column_name = "date"
   )
-  
-  
   return(data_sft = data_sft)
 }
 
+
+#' Create a sf object from a data.table
+#'
+#' @param datatable A data.table object with columns "lat", "lon"
+#' @param crs A character containing the original crs
+#' @returns an sf object
 create_sf <- function(datatable, crs) {
+  if (!("data.table" %in% class(datatable))) {
+    stop("datatable is not a data.table")
+  }
+  if (class(crs) != "character") {stop("crs is not a character")}
   if (!("lon" %in% colnames(datatable))) {
-    stop('"lon" column missing')
+    stop("datatable does not contain lon column")
   }
   if (!("lat" %in% colnames(datatable))) {
-    stop('"lat" column missing')
+    stop("datatable does not contain lat column")
   }
   
   data_sf <- st_as_sf(datatable,
@@ -63,7 +68,28 @@ create_sf <- function(datatable, crs) {
   return(data_sf)
 }
 
+#' Project coordinates in a datatable from crs_ori to crs_dest
+#' 
+#' @param datatable A data.table object with columns "lat", "lon"
+#' @param crs_ori A character containing the original crs of spatial data
+#' @param crs_dest A character containing the destination crs of spatial data
+#' @returns same datatable object with "lon", "lat", 
+#' "lon_ori", "lat_ori" columns
 project_dt <- function(datatable, crs_ori, crs_dest) {
+  
+  if (class(crs_ori) != "character" || class(crs_dest) != "character") {
+    stop("crs are not characters") 
+  }
+  if (!("data.table" %in% class(datatable))) {
+    stop("datatable is not a data.table")
+  }
+  if (!("lat" %in% colnames(datatable))) {
+    stop("datatable does not contain lat column")
+  }
+  if (!("lon" %in% colnames(datatable))) {
+    stop("datatable does not contain lon column")
+  }
+  
   loc <- unique(datatable[, c("lon", "lat")])
   loc_sf <- create_sf(loc, crs_ori)
   loc_sf <- st_transform(loc_sf, crs_dest)
@@ -94,16 +120,29 @@ project_dt <- function(datatable, crs_ori, crs_dest) {
 #' @param crs A character containing the crs of spatial data
 #' @returns same datatable object with "county" columns
 add_nc_county <- function(datatable, crs) {
+  
   if (class(crs) != "character") {stop("crs is not a character")}
+  if (!("data.table" %in% class(datatable))) {
+    stop("datatable is not a data.table")
+    }
+  if (!("lat" %in% colnames(datatable))) {
+    stop("datatable does not contain lat column")
+    }
+  if (!("lon" %in% colnames(datatable))) {
+    stop("datatable does not contain lon column")
+  }
   nc_borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp")
-  if (crs(nc_borders) != crs) {
+  if (!same.crs(nc_borders, crs)) {
     nc_borders <- project(nc_borders, crs)
-  } 
+  }
+  
   loc <- unique(datatable[, c("lon", "lat")])
   loc <- vect(loc, geom = c("lon", "lat"), crs = crs, keepgeom = TRUE)
   loc$county <- terra::extract(nc_borders[, c("County")], loc)$County
   datatable <- merge(datatable, 
                      loc[, c("lon", "lat", "county")], 
                      by = c("lon", "lat"))
+  
   return(datatable)
+  
 }

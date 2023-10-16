@@ -54,32 +54,11 @@ obs_p <- obs[date %in% p, ]
 Define origin and destination projections
 
 ```{r}
-crs_wgs84 <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-crs_nad83 <- crs_nad83 <- 'PROJCS["NAD83 / Conus Albers",
-    GEOGCS["NAD83",
-        DATUM["North_American_Datum_1983",
-            SPHEROID["GRS 1980",6378137,298.257222101],
-            TOWGS84[0,0,0,0,0,0,0]],
-        PRIMEM["Greenwich",0,
-            AUTHORITY["EPSG","8901"]],
-        UNIT["degree",0.0174532925199433,
-            AUTHORITY["EPSG","9122"]],
-        AUTHORITY["EPSG","4269"]],
-    PROJECTION["Albers_Conic_Equal_Area"],
-    PARAMETER["latitude_of_center",23],
-    PARAMETER["longitude_of_center",-96],
-    PARAMETER["standard_parallel_1",29.5],
-    PARAMETER["standard_parallel_2",45.5],
-    PARAMETER["false_easting",0],
-    PARAMETER["false_northing",0],
-    UNIT["metre",1,
-        AUTHORITY["EPSG","9001"]],
-    AXIS["Easting",EAST],
-    AXIS["Northing",NORTH],
-    AUTHORITY["EPSG","5070"]]'
+crs_wgs84 <- "epsg:4326"
+crs_nad83 <- "epsg:5070"
 ```
 
-Project datatables lon and lat variables
+Project data.tables lon and lat variables
 
 ```{r}
 pred_p <- project_dt(pred_p, crs_wgs84, crs_nad83)
@@ -93,105 +72,15 @@ pred_p <- add_nc_county(pred_p, crs_nad83)
 obs_p <- add_nc_county(obs_p, crs_nad83)
 ```
 
-
-```{r, eval=F}
-obs_p$date <- as.Date(obs_p$date)
-obs_p_sft <- st_as_sftime(obs_p,
-  coords = c("lon", "lat"),
-  remove = F,
-  crs = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
-  time_column_name = "date"
-)
-pred_p$date <- as.Date(pred_p$date)
-pred_p_sft <- st_as_sftime(pred_p,
-  coords = c("lon", "lat"),
-  remove = F,
-  crs = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
-  time_column_name = "date"
-)
-#crs.meters <- "+proj=lcc +lat_0=33.75 +lon_0=-79 +lat_1=36.1666666666667 +lat_2=34.3333333333333 +x_0=609601.219202439 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
-crs_nad83 <- 'PROJCS["NAD83 / Conus Albers",
-    GEOGCS["NAD83",
-        DATUM["North_American_Datum_1983",
-            SPHEROID["GRS 1980",6378137,298.257222101],
-            TOWGS84[0,0,0,0,0,0,0]],
-        PRIMEM["Greenwich",0,
-            AUTHORITY["EPSG","8901"]],
-        UNIT["degree",0.0174532925199433,
-            AUTHORITY["EPSG","9122"]],
-        AUTHORITY["EPSG","4269"]],
-    PROJECTION["Albers_Conic_Equal_Area"],
-    PARAMETER["latitude_of_center",23],
-    PARAMETER["longitude_of_center",-96],
-    PARAMETER["standard_parallel_1",29.5],
-    PARAMETER["standard_parallel_2",45.5],
-    PARAMETER["false_easting",0],
-    PARAMETER["false_northing",0],
-    UNIT["metre",1,
-        AUTHORITY["EPSG","9001"]],
-    AXIS["Easting",EAST],
-    AXIS["Northing",NORTH],
-    AUTHORITY["EPSG","5070"]]'
-
-nc_borders <- project(nc_borders, crs_nad83)
-obs_p_sft <- st_transform(obs_p_sft, crs_nad83)
-pred_p_sft <- st_transform(pred_p_sft, crs_nad83)
-
-# -- store c(lon,lat) columns in crs.meters (instead of wgs84)
-obs_p_sft <- obs_p_sft %>%
-  mutate(
-    lon = unlist(map(obs_p_sft$geometry, 1)),
-    lat = unlist(map(obs_p_sft$geometry, 2))
-  )
-
-pred_p_sft <- pred_p_sft %>%
-  mutate(
-    lon = unlist(map(pred_p_sft$geometry, 1)),
-    lat = unlist(map(pred_p_sft$geometry, 2))
-  )
-```
-
-Before removing NA, reconvert to data.table to easily create STFDF
-
-```{r, eval=F}
-obs_p <- as.data.table(obs_p_sft)
-obs_p <- obs_p[, geometry := NULL]
-```
-
 Remove NA in obs_p_sft
 
 ```{r}
+obs_p_sft <- create_sftime(obs_p, crs_nad83)
 obs_p_sft <- obs_p_sft[!is.na(obs_p_sft$tmin) & !is.na(obs_p_sft$tmax), ]
 ```
 
-#### Residuals plot function
-
-```{r}
-gplot_res <- function(x, y, titre = "titre") {
-  ggplot(data.frame(x = x, y = y), aes(x, y)) +
-    geom_point(col = "blue", alpha = .5) +
-    xlim(5, 30) +
-    ylim(-10, 10) +
-    ylab("Residuals") +
-    xlab("Predicted values") +
-    ggtitle(titre) +
-    coord_equal() +
-    geom_hline(yintercept = 0, col = "green")
-}
-```
 
 #### Prepare train and test samples
-
-Add county corresponding to each monitor location
-
-```{r}
-monitors <- unique(obs_p[, c("station", "lon", "lat")])
-monitors <- vect(monitors, geom = c("lon", "lat"), crs = crs_nad83)
-plot(monitors)
-monitors$county <- terra::extract(nc_borders[, c("County")], monitors)$County
-obs_p_sft <- merge(obs_p_sft, monitors[, c("station", "county")], by = c("station"))
-obs_p <- merge(obs_p, monitors[, c("station", "county")], by = c("station"))
-```
 
 Create several types of train and test sets:
 
@@ -207,58 +96,52 @@ Create several types of train and test sets:
 
 ```{r}
 set.seed(111)
-obs_p <- na.omit(obs_p)
-test_ratio <- .2
 
-# -- random spatially and temporally test_rnd_st
-npop <- nrow(obs_p)
-ntest_rnd_st <- ceiling(npop * test_ratio)
-test_rnd_st_i <- sample(1:npop, ntest_rnd_st)
-train_rnd_st_i <- setdiff(1:npop, test_rnd_st_i)
-train_rnd_st <- obs_p[train_rnd_st_i, ]
-test_rnd_st <- obs_p[test_rnd_st_i, ]
-str(train_rnd_st)
-str(test_rnd_st)
+sets_rdnst <- create_sets_rdnst(obs_p)
+train_rdnst <- sets_rdnst$train
+test_rdnst <- sets_rdnst$test
 
-# -- random spatially but keep timeserie
-monitors <- unique(obs_p$station)
-n.mon <- length(monitors)
-ntest_rnd_s <- ceiling(n.mon * test_ratio)
-test_rnd_s_i <- sample(1:n.mon, ntest_rnd_s)
-train_rnd_s_i <- setdiff(1:n.mon, test_rnd_s_i)
-train_rnd_s <- obs_p[station %in% monitors[train_rnd_s_i], ]
-test_rnd_s <- obs_p[station %in% monitors[test_rnd_s_i], ]
-str(train_rnd_s)
-str(test_rnd_s)
+sets_rdns <- create_sets_rdns(obs_p)
+train_rdns <- sets_rdns$train
+test_rdns <- sets_rdns$test
 
-# -- random temporally but keep all monitors for each date in the training set
-# -- (remove the last day of the period of length(p) days)
-train_rnd_t <- obs_p[date %in% p[1:length(p) - 1], ]
-test_rnd_t <- obs_p[date %in% p[length(p)], ]
+test_dates <- as.Date("2022-07-22")
+sets_t <- create_sets_t(obs_p, test_dates)
+train_t <- sets_t$train
+test_t <- sets_t$test
 
-# -- spatial selection (by group of county)
-n_county <- dim(nc_borders)[1]
-urban_c <- c("Durham", "Orange", "Chatham", "Wake")
-# urban_c <- c("Mecklenburg")
-mountain_c <- c("Wilkes", "Ashe", "Watauga", "Caldwell")
-piedmont_c <- c("Rowan", "Davidson", "Davie", "Forsyth")
-plain_c <- c("Wilson", "Edgecombe", "Nash", "Halifax")
-sea_c <- c("Tyrrell", "Washington", "Dare", "Hyde")
-train_s_urb <- obs_p[!(county %in% urban_c), ]
-test_s_urb <- obs_p[county %in% urban_c, ]
-train_s_mou <- obs_p[!(county %in% mountain_c), ]
-test_s_mou <- obs_p[county %in% mountain_c, ]
-train_s_pie <- obs_p[!(county %in% piedmont_c), ]
-test_s_pie <- obs_p[county %in% piedmont_c, ]
-train_s_pla <- obs_p[!(county %in% plain_c), ]
-test_s_pla <- obs_p[county %in% plain_c, ]
-train_s_sea <- obs_p[!(county %in% sea_c), ]
-test_s_sea <- obs_p[county %in% sea_c, ]
+urb <- c("Durham", "Orange", "Chatham", "Wake")
+sets_s <- create_sets_s(obs_p, urb)
+train_urb <- sets_s$train
+test_urb <- sets_s$test
+
+mou <- c("Wilkes", "Ashe", "Watauga", "Caldwell")
+sets_s <- create_sets_s(obs_p, mou)
+train_mou <- sets_s$train
+test_mou <- sets_s$test
+
+pie <- c("Rowan", "Davidson", "Davie", "Forsyth")
+sets_s <- create_sets_s(obs_p, pie)
+train_pie <- sets_s$train
+test_pie <- sets_s$test
+
+pla <- c("Wilson", "Edgecombe", "Nash", "Halifax")
+sets_s <- create_sets_s(obs_p, pla)
+train_pla <- sets_s$train
+test_pla <- sets_s$test
+
+sea <- c("Tyrrell", "Washington", "Dare", "Hyde")
+sets_s <- create_sets_s(obs_p, sea)
+train_sea <- sets_s$train
+test_sea <- sets_s$test
 
 # -- selection with network origin
-train_net <- obs_p[!(network %in% c("ECONET", "CRN", "WBAN")), ]
-test_net <- obs_p[network %in% c("ECONET", "CRN", "WBAN"), ]
+net <- c("ECONET", "CRN", "WBAN")
+sets_net <- create_sets_net(obs_p, net)
+train_net <- sets_net$train
+test_net <- sets_net$test
 ```
+
 
 Plot training et testing sample tile plots and maps
 
@@ -573,7 +456,7 @@ plot.pred <- pred_p[pred_p$date==d,]
 plot.pred <- st_as_sf(plot.pred, 
                     coords=c("lon", "lat"),
                     remove=F,
-                    crs="+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
+                    crs=4326)
 plot.pred <- vect(plot.pred)
 
 m <- ggplot() +
@@ -680,7 +563,7 @@ plot.pred <- pred_p[pred_p$date==d,]
 plot.pred <- st_as_sf(plot.pred, 
                     coords=c("lon", "lat"),
                     remove=F,
-                    crs="+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
+                    crs=4326)
 plot.pred <- vect(plot.pred)
 
 m <- ggplot() +

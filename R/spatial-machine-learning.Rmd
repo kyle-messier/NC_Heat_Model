@@ -31,6 +31,9 @@ library(randomForest)
 
 # -- code style
 library(styler)
+
+# -- spatial k-fold CV
+library(spatialsample)
 ```
 
 My own functions to manipulate data:
@@ -38,6 +41,7 @@ My own functions to manipulate data:
 ```{r}
 source("functions_manipulate_spacetime_data.R")
 source("functions_open_my_spacetime_data.R")
+source("functions_machine_learning.R")
 ```
 
 #### Open data on a specific period
@@ -75,8 +79,20 @@ obs_p <- add_nc_county(obs_p, crs_nad83)
 Remove NA in obs_p_sft
 
 ```{r}
-obs_p_sft <- create_sftime(obs_p, crs_nad83)
-obs_p_sft <- obs_p_sft[!is.na(obs_p_sft$tmin) & !is.na(obs_p_sft$tmax), ]
+obs_p <- obs_p[!is.na(obs_p$tmin) & !is.na(obs_p$tmax), ]
+```
+
+#### Check data content
+
+```{r}
+meta_obs <- c("lon", "lat", "date", "station", "county")
+meta_pred <- c("lon", "lat", "date")
+predictors <- c("tcc", "imp", "build.fp", "build.h", "dem", "TN12am")
+# -- quantitative predictors
+predictors_q <- c("tcc", "imp", "build.fp", "dem", "TN12am")
+predicted <- "tmin"
+check_obs(obs_p, meta_obs, predictors, predicted)
+check_pred_grid(pred_p, meta_pred, predictors)
 ```
 
 
@@ -84,31 +100,36 @@ obs_p_sft <- obs_p_sft[!is.na(obs_p_sft$tmin) & !is.na(obs_p_sft$tmax), ]
 
 Create several types of train and test sets:
 
--   rdn_st: select randomly the observations in space and time
+-   rndst: select randomly the observations in space and time
 
--   rdn_s: select randomly the stations (and keep the whole timeserie)
+-   rnds: select randomly the stations (and keep the whole timeserie)
 
--   rdn_t: seperate train and test by dates (here: remove the last date of the dataset to evaluate capacity of prediction)
+-   t: seperate train and test by dates (here: remove the last date of the dataset to evaluate capacity of prediction)
 
--   s.[area_name]: seperate train and test by selecting stations (and their entire timeserie) according to a contiguous area (group of counties). Several options are possible (test can be urban - mountain - piedmont - sea - plain).
+-   [area_name]: seperate train and test by selecting stations (and their entire timeserie) according to a contiguous area (group of counties). Several options are possible (test can be urban - mountain - piedmont - sea - plain).
 
 -   net: select monitors per network. Reliable networks: ECONET, CRN, WBAN. Less reliable: COOP and RAWS.
 
 ```{r}
 set.seed(111)
 
-sets_rdnst <- create_sets_rdnst(obs_p)
-train_rdnst <- sets_rdnst$train
-test_rdnst <- sets_rdnst$test
+# -- regular 1-fold
+sets_rndst <- create_sets_rndst(obs_p)
+train_rndst <- sets_rndst$train
+test_rndst <- sets_rndst$test
 
-sets_rdns <- create_sets_rdns(obs_p)
-train_rdns <- sets_rdns$train
-test_rdns <- sets_rdns$test
+# -- randomly 1-fold locations out
+sets_rnds <- create_sets_rnds(obs_p)
+train_rnds <- sets_rnds$train
+test_rnds <- sets_rnds$test
 
+# -- randomly 1-fold dates out
 test_dates <- as.Date("2022-07-22")
 sets_t <- create_sets_t(obs_p, test_dates)
 train_t <- sets_t$train
 test_t <- sets_t$test
+
+# -- blocks 1-fold locations out
 
 urb <- c("Durham", "Orange", "Chatham", "Wake")
 sets_s <- create_sets_s(obs_p, urb)
@@ -142,15 +163,15 @@ train_net <- sets_net$train
 test_net <- sets_net$test
 ```
 
-
 Plot training et testing sample tile plots and maps
 
 ```{r}
-df_test <- test_rnd_st
+df_test <- test_rndst
 df_test$set <- "test"
-df_train <- train_rnd_st
+df_train <- train_rndst
 df_train$set <- "train"
 df <- rbind(df_train, df_test)
+
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
   geom_tile() +
   scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
@@ -162,9 +183,9 @@ ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
 ```
 
 ```{r}
-df_test <- test_rnd_s
+df_test <- test_rnds
 df_test$set <- "test"
-df_train <- train_rnd_s
+df_train <- train_rnds
 df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
@@ -178,9 +199,9 @@ ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
 ```
 
 ```{r}
-df_test <- test_rnd_t
+df_test <- test_t
 df_test$set <- "test"
-df_train <- train_rnd_t
+df_train <- train_t
 df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
@@ -194,9 +215,9 @@ ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
 ```
 
 ```{r}
-df_test <- test_s_urb
+df_test <- test_urb
 df_test$set <- "test"
-df_train <- train_s_urb
+df_train <- train_urb
 df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
@@ -215,9 +236,9 @@ ggplot(df, aes(x = lon, y = lat, color = set)) +
 ```
 
 ```{r}
-df_test <- test_s_mou
+df_test <- test_mou
 df_test$set <- "test"
-df_train <- train_s_mou
+df_train <- train_mou
 df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
@@ -236,9 +257,9 @@ ggplot(df, aes(x = lon, y = lat, color = set)) +
 ```
 
 ```{r}
-df_test <- test_s_pie
+df_test <- test_pie
 df_test$set <- "test"
-df_train <- train_s_pie
+df_train <- train_pie
 df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
@@ -256,9 +277,9 @@ ggplot(df, aes(x = lon, y = lat, color = set)) +
 ```
 
 ```{r}
-df_test <- test_s_pla
+df_test <- test_pla
 df_test$set <- "test"
-df_train <- train_s_pla
+df_train <- train_pla
 df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
@@ -276,9 +297,9 @@ ggplot(df, aes(x = lon, y = lat, color = set)) +
 ```
 
 ```{r}
-df_test <- test_s_sea
+df_test <- test_sea
 df_test$set <- "test"
-df_train <- train_s_sea
+df_train <- train_sea
 df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
@@ -293,6 +314,96 @@ ggplot(df, aes(x = lon, y = lat, color = set)) +
   scale_color_manual(values=c("train"="lightblue", test="tomato4"))+
   labs(title="Test on sea counties")+
   coord_equal()
+```
+
+#### Prepare spatial k-fold CV
+
+```{r}
+
+obs_p_sf <- create_sf(obs_p, "epsg:5070")
+# -- uses k-means clustering
+cluster_llo <- spatial_clustering_cv(obs_p_sf, v = 10)
+block_llo <- spatial_block_cv(obs_p_sf, v = 10)
+net_llo <- spatial_leave_location_out_cv(obs_p_sf, 
+                                           group = network, 
+                                           v = 6)
+
+autoplot(cluster_llo)
+autoplot(block_llo)
+autoplot(net_llo)
+
+cluster_llo$type <- "cluster"
+block_llo$type <- "block"
+net_llo$type <- "network"
+
+resamples <-
+  dplyr::bind_rows(
+    cluster_llo,
+    block_llo,
+    net_llo
+  )
+
+```
+
+
+```{r}
+library(yardstick)
+
+compute_preds <- function(splits) {
+  mod <- lm(formula_q, data = analysis(splits))
+  holdout <- assessment(splits)
+  tibble::tibble(
+    geometry = holdout$geometry,
+    tmin = holdout$tmin,
+    .pred = predict(mod, holdout)
+  )
+}
+
+cv_res <- resamples %>%
+  mutate(.preds = map(splits, compute_preds))
+
+cv_rmse <- cv_res %>%
+  unnest(.preds) %>%
+  group_by(id, type) %>%
+  rmse(tmin, .pred)
+
+cv_rmse
+
+library(ggplot2)
+
+cv_res %>%
+  unnest(.preds) %>%
+  left_join(cv_rmse, by = c("id", "type")) %>%
+  ggplot(aes(color = .estimate)) +
+  geom_sf(aes(geometry = geometry), alpha = 1) +
+  labs(color = "RMSE") +
+  scale_color_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "ºC"),
+    n.breaks = 8,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  facet_wrap(vars(type), ncol = 1) +
+  theme(
+			axis.text = element_blank(),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+
+```
+
+
+#### Formula definition
+
+```{r}
+(formula <- as.formula(paste(predicted, " ~ ", 
+                             paste(predictors, collapse= "+"))))
+(formula_q <- as.formula(paste(predicted, " ~ ", 
+                             paste(predictors_q,
+                                   collapse= "+"))))
 ```
 
 ## Linear regression
@@ -328,124 +439,164 @@ ggplot(obs_p) +
 ```
 
 ```{r}
-reg.lm <- aov(tmin ~ TN12am, data = train_rnd_st)
-res.lm <- reg.lm$residuals
-fit.lm <- reg.lm$fitted.values
-gplot_res(fit.lm, res.lm, "ANCOVA without covariate selection")
-coef(reg.lm)
+reg_lm <- aov(tmin ~ TN12am, data = train_rnds)
+res_lm <- reg_lm$residuals
+fit_lm <- reg_lm$fitted.values
+plot_res(fit_lm, res_lm, "ANOVA tmin ~ TN12am")
+plot_reg(train_rnds$tmin, fit_lm, "ANOVA tmin ~ TN12am")
+summary(reg_lm)
 ```
 
 ```{r}
-reg.lm <-aov(tmin ~ TN12am + tcc + dem + imp + build.h + build.fp , data = train_rnd_st)
-res.lm <- reg.lm$residuals
-fit.lm <- reg.lm$fitted.values
-gplot_res(fit.lm, res.lm, "ANCOVA without covariate selection")
-coef(reg.lm)
+reg_lm <- aov(formula, data = train_rnds)
+res_lm <- reg_lm$residuals
+fit_lm <- reg_lm$fitted.values
+plot_res(fit_lm, res_lm, "ANCOVA without covariate selection")
+plot_reg(
+  train_rnds$tmin, fit_lm,
+  paste("ANCOVA \n",
+        predicted, " ~ \n", 
+        paste(predictors, collapse= " + "))
+)
+summary(reg_lm)
 ```
-
 Regression shrinkage methods
 
-```{r}
-reg.lasso.quanti <- glmnet(y = train_rnd_st$tmin, x = as.matrix(train_rnd_st[, c("tcc", "imp", "build.fp", "dem", "TN12am")]))
-plot(reg.lasso.quanti, xvar = "lambda", label = TRUE)
-legend(x=-4, y=0.4,legend = paste(1:5, " - ", c("tcc", "imp", "build.fp", "dem", "TN12am")), cex = .4)
 
-x.mat <- model.matrix(tmin ~ . - 1, data = train_rnd_st[, c("tmin", "tcc", "imp", "build.fp", "build.h", "dem", "TN12am")])
-reg.lasso <- glmnet(y = train_rnd_st$tmin, x = x.mat)
+```{r}
+reg_lasso.quanti <- glmnet(
+  y = as.data.frame(train_rnds)[, predicted],
+  x = as.matrix(
+    as.data.frame(train_rnds)[, predictors_q]
+  )
+)
+plot(reg_lasso.quanti, xvar = "lambda", label = TRUE)
+legend(
+  x = -4, y = 0.2,
+  legend = paste(1:length(predictors_q), " - ", predictors_q),
+  cex = .6
+)
+```
+
+```{r}
+x_mat <- model.matrix(formula, data = train_rnds)
+x_mat <- x_mat[, 2:ncol(x_mat)] # -- remove intercept
+reg_lasso <- glmnet(
+  y = as.data.frame(train_rnds)[, predicted],
+  x = x_mat
+)
+
+
 options(repr.plot.width = 12, repr.plot.height = 10)
-plot(reg.lasso, xvar = "lambda", label = TRUE)
-legend(x=-1, y=2,legend = paste(1:ncol(x.mat), " - ", colnames(x.mat)), cex = .4)
+plot(reg_lasso, xvar = "lambda", label = TRUE)
+legend(
+  x = -1, y = -0.1,
+  legend = paste(1:ncol(x_mat), " - ", colnames(x_mat)),
+  cex = .4
+)
 ```
 
 Optimum for log(lambda) : two covariates (TN12am and dem)
 
+Classical cross validation 
+
 ```{r}
-reg.lasso_cv <- cv.glmnet(y = train_rnd_st$tmin, x = as.matrix(train_rnd_st[, c("tcc", "imp", "build.fp", "dem", "TN12am")]))
-plot(reg.lasso_cv)
+reg_lasso_cv <- cv.glmnet(y = as.data.frame(train_rnds)[,predicted], 
+                          x = x_mat)
+plot(reg_lasso_cv)
 ```
 
 ```{r}
-paste("CV estimate of lambda :", round(reg.lasso_cv$lambda.1se, 3))
-coef(reg.lasso_cv, s = "lambda.1se")
+paste("CV estimate of lambda :", round(reg_lasso_cv$lambda.1se, 3))
+coef(reg_lasso_cv, s = "lambda.1se")
 ```
 
 ```{r}
-fit.lasso.1se <- predict(reg.lasso_cv, s = "lambda.1se", newx = as.matrix(train_rnd_st[, c("tcc", "imp", "build.fp", "dem", "TN12am")]))
-res.lasso.1se <- train_rnd_st$tmin - fit.lasso.1se 
+fit_lasso_1se <- stats::predict(reg_lasso_cv, s = "lambda.1se", 
+                         newx = x_mat)
+res_lasso_1se <- data.frame(train_rnds)[, predicted] - fit_lasso_1se 
 
 # Graphe des résidus
-options(repr.plot.width = 12, repr.plot.height = 4)
-par(mfrow = c(1, 3))
-gplot_res(fit.lm, res.lm, "Linéaire, sans sélection")
-gplot_res(fit.lasso.1se, res.lasso.1se, "Linéaire, pénalité L1, lambda 1se") 
+plot_res(fit_lm, res_lm, "Linéaire, sans sélection")
+plot_res(fit_lasso_1se, res_lasso_1se, 
+         "Linéaire penalité L1 lambda 1se") 
+
+plot_reg(data.frame(train_rnds)[, predicted], fit_lm, 
+         "Linéaire, sans sélection") 
+plot_reg(data.frame(train_rnds)[, predicted], fit_lasso_1se, 
+         "Linéaire penalité L1 lambda 1se") 
 ```
 
 ```{r}
-paste("Without coef shrinkage MSE:",mean(res.lm^2))
-paste("LASSO with lambda.1se:",mean(res.lasso.1se^2))
+paste("Without coef shrinkage MSE:", mean(res_lm^2))
+paste("LASSO with lambda.1se:", mean(res_lasso_1se^2))
 ```
 
-10-fold CV mean square error
+10-fold CV mean square error 
+(traditional one, see to implement spatial one)
 
 ```{r}
-V <- 10 
-nV <- floor(nrow(train_rnd_st)/V)
-S <- sample(1:nrow(train_rnd_st), replace=FALSE)
-error.CV = c()
-for(v in 1:V){
-    train_rnd_st.learn <- train_rnd_st[-c(S[(nV*(v-1)):(nV*v)]),] 
-    train_rnd_st.valid <- train_rnd_st[c(S[(nV*(v-1)):(nV*v)]),]
-    error.CV <- c(error.CV, mean((train_rnd_st.valid$tmin-predict(aov(tmin ~ tcc + imp + build.fp + dem + TN12am, data=train_rnd_st.learn), newdata=train_rnd_st.valid))^2))
+V <- 10
+nV <- floor(nrow(train_rnds) / V)
+S <- sample(1:nrow(train_rnds), replace = FALSE)
+error_CV <- c()
+for (v in 1:V) {
+  train_rnds_learn <- train_rnds[-c(S[(nV * (v - 1)):(nV * v)]), ]
+  train_rnds_valid <- train_rnds[c(S[(nV * (v - 1)):(nV * v)]), ]
+  fit_valid <- predict(aov(formula, data = train_rnds_learn), 
+                 newdata = train_rnds_valid)
+  y_valid <- data.frame(train_rnds_valid)[, predicted]
+  error_CV <- c(error_CV, mean((y_valid - fit_valid)^2))
 }
-mean(error.CV)
-print(reg.lasso_cv)
+mean(error_CV)
+print(reg_lasso_cv)
 ```
 
 Quadratic model (AIC criteria model selection)
 
 ```{r}
-reg.glm <- glm(tmin ~ .^2, data = train_rnd_st[, c("tmin", "tcc", "imp", "build.fp", "dem", "TN12am")])
+reg_glm <- glm(tmin ~ .^2, data = train_rnds[, c("tmin", "tcc", "imp", "build.fp", "dem", "TN12am")])
 
 
-reg.glm_step <- step(reg.glm, direction = "backward")
-anova(reg.glm_step, test_rnd_st = "F")   
+reg_glm_step <- step(reg_glm, direction = "backward")
+anova(reg_glm_step, test_rnds = "F")   
 ```
 
 LASSO (L1 shrinkage)
 
 ```{r}
-x.mat2 <- model.matrix(tmin ~ .^2 - 1, data = train_rnd_st[, c("tmin", "tcc", "imp", "build.fp", "dem", "TN12am")])
-reg.lasso2 <- glmnet(y = train_rnd_st$tmin, x = x.mat2)
-reg.lasso2_cv <- cv.glmnet(y = train_rnd_st$tmin, x = x.mat2)
-coef(reg.lasso2_cv, s = "lambda.1se")
+x_mat2 <- model.matrix(tmin ~ .^2 - 1, data = train_rnds[, c("tmin", "tcc", "imp", "build.fp", "dem", "TN12am")])
+reg_lasso2 <- glmnet(y = train_rnds$tmin, x = x_mat2)
+reg_lasso2_cv <- cv.glmnet(y = train_rnds$tmin, x = x_mat2)
+coef(reg_lasso2_cv, s = "lambda.1se")
 ```
 
 ```{r}
-fit.glm <- reg.glm_step$fitted.values 
-res.glm <- reg.glm_step$residuals
-fit.lasso2_cv <- predict(reg.lasso2_cv, s = "lambda.min", newx = x.mat2)
-res.lasso2_cv <- train_rnd_st$tmin - fit.lasso2_cv
+fit_glm <- reg_glm_step$fitted.values 
+res_glm <- reg_glm_step$residuals
+fit_lasso2_cv <- predict(reg_lasso2_cv, s = "lambda.min", newx = x_mat2)
+res_lasso2_cv <- train_rnds$tmin - fit_lasso2_cv
 
 # Graphe des résidus
-g1<-gplot_res(fit.lm, res.lm, "linéaire")
-g2<-gplot_res(fit.lasso.1se, res.lasso.1se, "linéaire, pénalité L1")
-g3<-gplot_res(fit.glm, res.glm, "quadratique, backward AIC")
-g4<-gplot_res(fit.lasso2_cv, res.lasso2_cv, "quadratique, pénalité L1")
+g1<-gplot_res(fit_lm, res_lm, "linéaire")
+g2<-gplot_res(fit_lasso_1se, res_lasso_1se, "linéaire, pénalité L1")
+g3<-gplot_res(fit_glm, res_glm, "quadratique, backward AIC")
+g4<-gplot_res(fit_lasso2_cv, res_lasso2_cv, "quadratique, pénalité L1")
 grid.arrange(g1,g2,g3,g4,ncol=2,nrow=2)
 ```
 
-test_rnd_st sample predictions
+test_rnds sample predictions
 
 ```{r}
-test_rnd_st$glm.pred <- predict(reg.glm_step, newdata = test_rnd_st)
-test_rnd_st$glm.res <- test_rnd_st$glm.pred - test_rnd_st$tmin
-sum((test_rnd_st$glm.res)^2) / nrow(test_rnd_st)
+test_rnds$glm.pred <- predict(reg_glm_step, newdata = test_rnds)
+test_rnds$glm.res <- test_rnds$glm.pred - test_rnds$tmin
+sum((test_rnds$glm.res)^2) / nrow(test_rnds)
 ```
 
 Grid prediction
 
 ```{r}
-pred_p$glm.pred <- predict(reg.glm_step, newdata = pred_p)
+pred_p$glm.pred <- predict(reg_glm_step, newdata = pred_p)
 ```
 
 Select and plot a specific date
@@ -502,15 +653,15 @@ m
 Results with LASSO regression on quadratic covariates
 
 ```{r}
-x.mat2 <- model.matrix(tmin ~ .^2 - 1, data = train_rnd_st[, c("tmin", "tcc", "imp", "build.fp", "dem", "TN12am")])
-x.mat2.test <- model.matrix(tmin ~ .^2 - 1, data = test_rnd_st[, c("tmin", "tcc", "imp", "build.fp", "dem", "TN12am")])
+x_mat2 <- model.matrix(tmin ~ .^2 - 1, data = train_rnds[, c("tmin", "tcc", "imp", "build.fp", "dem", "TN12am")])
+x_mat2.test <- model.matrix(tmin ~ .^2 - 1, data = test_rnds[, c("tmin", "tcc", "imp", "build.fp", "dem", "TN12am")])
 
-reg.lasso2 <- glmnet(y = train_rnd_st$tmin, x = x.mat2)
-test_rnd_st$lasso2.pred <- predict(reg.lasso2, newx = x.mat2.test, s=0.1)
+reg_lasso2 <- glmnet(y = train_rnds$tmin, x = x_mat2)
+test_rnds$lasso2.pred <- predict(reg_lasso2, newx = x_mat2.test, s=0.1)
 
-test_rnd_st$lasso2.res <- test_rnd_st$lasso2.pred - test_rnd_st$tmin
-sum((test_rnd_st$lasso2.res)^2) / nrow(test_rnd_st)
-pred_p$lasso2.rdn_st.pred <- predict(reg.lasso2, newdata = pred_p)
+test_rnds$lasso2.res <- test_rnds$lasso2.pred - test_rnds$tmin
+sum((test_rnds$lasso2.res)^2) / nrow(test_rnds)
+pred_p$lasso2.rnds.pred <- predict(reg_lasso2, newdata = pred_p)
 ```
 
 ## Random Forest
@@ -518,18 +669,18 @@ pred_p$lasso2.rdn_st.pred <- predict(reg.lasso2, newdata = pred_p)
 ```{r}
 rf.reg <- randomForest(
   tmin ~ tcc + imp + build.fp + build.h + dem + TN12am, 
-  data=train_rnd_st, 
-  xtest_rnd_st=test_rnd_st[, .(tcc,imp,build.fp,build.h,dem,TN12am)], 
-  ytest_rnd_st=test_rnd_st$tmin,
+  data=train_rnds, 
+  xtest_rnds=test_rnds[, .(tcc,imp,build.fp,build.h,dem,TN12am)], 
+  ytest_rnds=test_rnds$tmin,
   ntree=500, mtry=2, do.trace=50, importance=TRUE)
 attributes(rf.reg)
 rf.reg$mtry
 ```
 
 ```{r}
-fit.rf=rf.reg$predicted
-res.rf=fit.rf-train_rnd_st$tmin
-gplot_res(fit.rf,res.rf,titre="")
+fit_rf=rf.reg$predicted
+res_rf=fit_rf-train_rnds$tmin
+gplot_res(fit_rf,res_rf,titre="")
 ```
 
 Variable importance
@@ -541,13 +692,13 @@ library(ggRandomForests)
 plot(gg_vimp(rf.reg))
 ```
 
-On test_rnd_st sample
+On test_rnds sample
 
 ```{r}
-test_rnd_st$rf.pred <- predict(rf.reg, newdata = test_rnd_st)
-#test_rnd_st$rf.pred <- rf.reg$test_rnd_st$predicted
-test_rnd_st$rf.res <- test_rnd_st$rf.pred - test_rnd_st$tmin
-sum((test_rnd_st$rf.res)^2)/nrow(test_rnd_st)
+test_rnds$rf.pred <- predict(rf.reg, newdata = test_rnds)
+#test_rnds$rf.pred <- rf.reg$test_rnds$predicted
+test_rnds$rf.res <- test_rnds$rf.pred - test_rnds$tmin
+sum((test_rnds$rf.res)^2)/nrow(test_rnds)
 ```
 
 Prediction on the grid
@@ -618,7 +769,7 @@ m
 
 ## Kriging on residuals
 
--   compute predictions on test_rnd_st set
+-   compute predictions on test_rnds set
 
 -   plot empirical variogram of residuals on validation set to see if there is a spatio-temporal pattern
 
@@ -626,15 +777,15 @@ m
 
 #### Variogram analysis
 
-Tranform test_rnd_st set to a STFDF object from spacetime library
+Tranform test_rnds set to a STFDF object from spacetime library
 
 ```{r}
 library(spacetime)
-test_rnd_st <- test_rnd_st[, ":="(date=as.Date(date)),]
-test_rnd_st_st <- stConstruct(as.data.frame(test_rnd_st), space=c("lon","lat"), time="date", 
-                       SpatialObj=SpatialPoints(test_rnd_st[,c("lon","lat")]), 
+test_rnds <- test_rnds[, ":="(date=as.Date(date)),]
+test_rnds_st <- stConstruct(as.data.frame(test_rnds), space=c("lon","lat"), time="date", 
+                       SpatialObj=SpatialPoints(test_rnds[,c("lon","lat")]), 
                        crs=CRS(crs_nad83))
-test_rnd_st_st <- as(test_rnd_st_st,"STFDF")
+test_rnds_st <- as(test_rnds_st,"STFDF")
 ```
 
 Plot residulals for one date
@@ -642,37 +793,37 @@ Plot residulals for one date
 Plot residuals evolution per one location
 
 ```{r, eval=FALSE}
-ggplot(test_rnd_st[which(test_rnd_st$station %in% unique(test_rnd_st$station)[1:10]),])+
+ggplot(test_rnds[which(test_rnds$station %in% unique(test_rnds$station)[1:10]),])+
   geom_line(aes(x=date, y=glm.res, color=station, group=station))+
   geom_point(aes(x=date, y=glm.res, color=station, group=station))+
   theme(legend.position="none")
 
 
-ggplot(test_rnd_st[which(test_rnd_st$network=="ECONET"),])+
-  geom_line(aes(x=date, y=glm.res, color=station, group=station))+
-  geom_point(aes(x=date, y=glm.res, color=station, group=station))+
-  ylim(-5,5)+
-  theme(legend.position="none")
-
-ggplot(test_rnd_st[which(test_rnd_st$network=="RAWS"),])+
+ggplot(test_rnds[which(test_rnds$network=="ECONET"),])+
   geom_line(aes(x=date, y=glm.res, color=station, group=station))+
   geom_point(aes(x=date, y=glm.res, color=station, group=station))+
   ylim(-5,5)+
   theme(legend.position="none")
 
-ggplot(test_rnd_st[which(test_rnd_st$network=="WBAN"),])+
+ggplot(test_rnds[which(test_rnds$network=="RAWS"),])+
   geom_line(aes(x=date, y=glm.res, color=station, group=station))+
   geom_point(aes(x=date, y=glm.res, color=station, group=station))+
   ylim(-5,5)+
   theme(legend.position="none")
 
-ggplot(test_rnd_st[which(test_rnd_st$network=="COOP"),])+
+ggplot(test_rnds[which(test_rnds$network=="WBAN"),])+
   geom_line(aes(x=date, y=glm.res, color=station, group=station))+
   geom_point(aes(x=date, y=glm.res, color=station, group=station))+
   ylim(-5,5)+
   theme(legend.position="none")
 
-ggplot(test_rnd_st)+
+ggplot(test_rnds[which(test_rnds$network=="COOP"),])+
+  geom_line(aes(x=date, y=glm.res, color=station, group=station))+
+  geom_point(aes(x=date, y=glm.res, color=station, group=station))+
+  ylim(-5,5)+
+  theme(legend.position="none")
+
+ggplot(test_rnds)+
   geom_line(aes(x=date, y=glm.res, color=station, group=station))+
   geom_point(aes(x=date, y=glm.res, color=station, group=station))+
   facet_wrap(vars(network))+
@@ -680,9 +831,9 @@ ggplot(test_rnd_st)+
   theme(legend.position="none")
 
 
-ggplot(test_rnd_st)+
+ggplot(test_rnds)+
   geom_point(aes(x=lon, y=lat, color=glm.res))+
-  geom_point(data=train_rnd_st, aes(x=lon, y=lat), shape=3, color="grey")+
+  geom_point(data=train_rnds, aes(x=lon, y=lat), shape=3, color="grey")+
   facet_wrap(vars(date))+
   scale_color_steps2(low="blue", mid="white", high="red", limits=c(-3,3), n.breaks=10)
 
@@ -693,10 +844,10 @@ Directions: 0=north, 90=east, 180=south, 270=west
 ```{r, eval=F}
 cutoff=30000 
 width=1000
-plot(variogram(rf.res ~ 1, data=test_rnd_st_st, cloud = TRUE, cutoff=cutoff, width=width), tlags=0:3, main="semivariogram cloud residuals RF")
+plot(variogram(rf.res ~ 1, data=test_rnds_st, cloud = TRUE, cutoff=cutoff, width=width), tlags=0:3, main="semivariogram cloud residuals RF")
 
 
-plot(variogram(glm.res ~ 1, test_rnd_st_st, cloud = TRUE, cutoff=10000, width=width), main="semivariogram cloud residuals glm")
+plot(variogram(glm.res ~ 1, test_rnds_st, cloud = TRUE, cutoff=10000, width=width), main="semivariogram cloud residuals glm")
 
 plot(variogram(tmin ~ 1, obs.d, cutoff=cutoff, width=width), main="sample semivariogram")
 plot(variogram(tmin ~ 1, obs.d, cutoff=cutoff, width=width, alpha = c(0, 45, 90, 135, 180, 225, 270, 315)), main="direction dependance")
@@ -724,7 +875,7 @@ plot(v.emp, vgm.mat, cutoff=cutoff)
 Fit Matern model
 
 ```{r, eval=F}
-v.fit <- fit.variogram(v.emp, vgm.mat, fit.range=F)
+v.fit <- fit_variogram(v.emp, vgm.mat, fit_range=F)
 plot(v.emp, v.fit)
 ```
 
@@ -737,7 +888,7 @@ range <- 20000
 width <- 1000
 v.emp <- variogram(tmin ~ 1, obs.d, cutoff=cutoff, width=width)
 vgm.mat <- vgm(psill=3, "Mat", range=range, nugget=nugget, cutoff=cutoff)
-v.fit <- fit.variogram(v.emp, vgm.mat, fit.range=F)
+v.fit <- fit_variogram(v.emp, vgm.mat, fit_range=F)
 ok <- gstat::krige(tmin ~ 1, obs.d, newdata=pred.d, v.fit)
 ```
 

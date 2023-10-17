@@ -12,6 +12,32 @@ library(data.table) # -- for large flat datasets
 library(DT)
 library(styler)
 
+#' Create a sf object from a data.table
+#'
+#' @param datatable A data.table object with columns "lat", "lon"
+#' @param crs A character containing the original crs
+#' @returns an sf object
+create_sf <- function(datatable, crs) {
+  if (!("data.table" %in% class(datatable))) {
+    stop("datatable is not a data.table")
+  }
+  if (class(crs) != "character") {stop("crs is not a character")}
+  if (!("lon" %in% colnames(datatable))) {
+    stop("datatable does not contain lon column")
+  }
+  if (!("lat" %in% colnames(datatable))) {
+    stop("datatable does not contain lat column")
+  }
+  
+  data_sf <- st_as_sf(datatable,
+                           coords = c("lon", "lat"),
+                           remove = F,
+                           crs = crs
+  )
+  return(data_sf)
+}
+
+
 #' Create a sftime object from a data.table
 #'
 #' @param datatable A data.table object with columns "lat", "lon", "date"
@@ -42,31 +68,6 @@ create_sftime <- function(datatable, crs) {
   return(data_sft = data_sft)
 }
 
-
-#' Create a sf object from a data.table
-#'
-#' @param datatable A data.table object with columns "lat", "lon"
-#' @param crs A character containing the original crs
-#' @returns an sf object
-create_sf <- function(datatable, crs) {
-  if (!("data.table" %in% class(datatable))) {
-    stop("datatable is not a data.table")
-  }
-  if (class(crs) != "character") {stop("crs is not a character")}
-  if (!("lon" %in% colnames(datatable))) {
-    stop("datatable does not contain lon column")
-  }
-  if (!("lat" %in% colnames(datatable))) {
-    stop("datatable does not contain lat column")
-  }
-  
-  data_sf <- st_as_sf(datatable,
-                           coords = c("lon", "lat"),
-                           remove = F,
-                           crs = crs
-  )
-  return(data_sf)
-}
 
 #' Project coordinates in a datatable from crs_ori to crs_dest
 #' 

@@ -56,14 +56,14 @@ test_that("Check create_sftime works", {
   expect_error(create_sftime(dt_eg, crs), 
                "datatable does not contain date column")
   
-  # -- 4rd example: crs is not a character
+  # -- 4th example: crs is not a character
   crs <- 5070
   dt_eg <- data.table("lon" = c(1520000, 1650000),
                       "lat" = c(1580000, 1550000),
                       "date" = c("2022-06-01", "2022-06-02"))
   expect_error(create_sftime(dt_eg, crs), "crs is not a character")
   
-  # -- 4th example: everything sounds good
+  # -- 5th example: everything sounds good
   crs <- "epsg:4326"
   dt_eg <- data.table("lon" = c(-78.895, -77.370),
                       "lat" = c(36.025, 35.599), 

@@ -1,3 +1,43 @@
+if (!require(emojifont)) install.packages('emojifont')
+library(emojifont)
+
+#' Check observation dataset content
+#'
+#' @param data A datatable of observations
+#' @param metadata a list of characters with obs info 
+#' (eg: county, date, lat, lon, ...)
+#' @param predictors a list of characters names of predictors
+#' @param predicted a character with the name of the predicted variable
+check_obs <- function(data, metadata, predictors, predicted) {
+  if (sum(!(metadata %in% colnames(data))) != 0) {
+    stop("some metadata columns are missing")
+  }
+  if (sum(!(predictors %in% colnames(data))) != 0) {
+    stop("some predictors columns are missing")
+  }
+  if (!(predicted %in% colnames(data)) != 0) {
+    stop("predicted variable is missing")
+  }
+  message("observations content: ", emoji("white_check_mark"))
+}
+
+#' Check prediction grid content
+#'
+#' @param data A datatable of observations
+#' @param metadata a list of characters with obs info 
+#' (eg: county, date, lat, lon, ...)
+#' @param predictors a list of characters names of predictors
+check_pred_grid <- function(data, metadata, predictors) {
+  if (sum(!(metadata %in% colnames(data))) != 0) {
+    stop("some metadata columns are missing")
+  }
+  if (sum(!(predictors %in% colnames(data))) != 0) {
+    stop("some predictors columns are missing")
+  }
+  message("prediction grid content: ", emoji("white_check_mark"))
+}
+
+
 
 # Train and test processing
 
@@ -7,7 +47,7 @@
 #' @param obs A datatable of observations
 #' @returns a list with train and test datatables
 #' (each row corresponds to a lat, lon, date)
-create_sets_rdnst <- function(obs) {
+create_sets_rndst <- function(obs) {
   
   if (!("data.table" %in% class(obs))) {stop("obs is not a data.table")}
   if (nrow(obs) == 0) {stop("obs is empty")}
@@ -31,7 +71,7 @@ create_sets_rdnst <- function(obs) {
 #' @param obs A datatable of observations
 #' @returns a list with train and test datatables
 #' (each row corresponds to a lat, lon, date)
-create_sets_rdns <- function(obs) {
+create_sets_rnds <- function(obs) {
   
   if (!("data.table" %in% class(obs))) {stop("obs is not a data.table")}
   if (nrow(obs) == 0) {stop("obs is empty")}
@@ -125,19 +165,35 @@ create_sets_net <- function(obs, test_net) {
   return(list(train=train, test=test))
 }
 
-
-# Plot functions
-
-plot_res <- function(pred.col, res.col, title) {
-  ggplot(data.frame(x = x, y = y), aes(x, y)) +
+#' plot residual according to prediction
+#'
+#' @param pred A vector of prediction
+#' @param res A vector of residuals
+#' @param title A character for plot title
+plot_res <- function(pred, res, title) {
+  ggplot(data.frame(x = as.numeric(pred), y = as.numeric(res)), aes(x, y)) +
     geom_point(col = "blue", alpha = .5) +
-    xlim(5, 30) +
     ylim(-10, 10) +
     ylab("Residuals") +
     xlab("Predicted values") +
-    ggtitle(titre) +
+    ggtitle(title) +
     coord_equal() +
     geom_hline(yintercept = 0, col = "green")
+}
+
+#' regression plot
+#'
+#' @param pred A vector of prediction
+#' @param res A vector of residuals
+#' @param title A character for plot title
+plot_reg <- function(obs, pred, title) {
+  ggplot(data.frame(x = as.numeric(obs), y = as.numeric(pred)), aes(x, y)) +
+    geom_point(col = "blue", alpha = .5) +
+    geom_abline(slope = 1, intercept = 0, color = "red") +
+    ylab("Predicted") +
+    xlab("Observed") +
+    ggtitle(title) +
+    coord_equal() 
 }
 
 

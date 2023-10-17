@@ -5,16 +5,78 @@ source("functions_open_my_spacetime_data.R")
 source("functions_manipulate_spacetime_data.R")
 source("functions_machine_learning.R")
 
+test_that("Check check_obs works", {
 
-test_that("Check create_sets_rdnst works", {
+  metadata <- c("lon", "lat", "date")
+  predictors <- c("dem", "imp")
+  predicted <- "tmin"
+  
+  # 1st example: some metadata columns missing 
+  obs <- data.table(lon=as.numeric(), lat=as.numeric(), 
+                    dem=as.numeric(), imp=as.numeric(), 
+                    tmin=as.numeric())
+  expect_error(check_obs(obs, metadata, predictors, predicted), 
+               "some metadata columns are missing")
+  
+  # 2nd example: some predictors columns missing
+  obs <- data.table(lon=as.numeric(), lat=as.numeric(), date=as.numeric(),
+                    imp=as.numeric(), 
+                    tmin=as.numeric())
+  expect_error(check_obs(obs, metadata, predictors, predicted), 
+               "some predictors columns are missing")
+  
+  # 3rd example: predicted variable missing
+  obs <- data.table(lon=as.numeric(), lat=as.numeric(), date=as.numeric(),
+                    dem=as.numeric(), imp=as.numeric())
+  expect_error(check_obs(obs, metadata, predictors, predicted), 
+               "predicted variable is missing")
+  
+  # 4th example: everything works fine
+  obs <- data.table(lon=as.numeric(), lat=as.numeric(), date=as.numeric(),
+                    dem=as.numeric(), imp=as.numeric(), 
+                    tmin=as.numeric())
+  expect_no_error(check_obs(obs, metadata, predictors, predicted))
+  expect_message(check_obs(obs, metadata, predictors, predicted),
+                 message("observations content: ", emoji("white_check_mark")))
+  
+})
+
+test_that("Check check_pred_grid works", {
+  
+  metadata <- c("lon", "lat", "date")
+  predictors <- c("dem", "imp")
+  
+  # 1st example: some metadata columns missing 
+  obs <- data.table(lon=as.numeric(), lat=as.numeric(), 
+                    dem=as.numeric(), imp=as.numeric())
+  expect_error(check_pred_grid(obs, metadata, predictors), 
+               "some metadata columns are missing")
+  
+  # 2nd example: some predictors columns missing
+  obs <- data.table(lon=as.numeric(), lat=as.numeric(), date=as.numeric(),
+                    imp=as.numeric())
+  expect_error(check_pred_grid(obs, metadata, predictors), 
+               "some predictors columns are missing")
+  
+  # 3rd example: everything works fine
+  obs <- data.table(lon=as.numeric(), lat=as.numeric(), date=as.numeric(),
+                    dem=as.numeric(), imp=as.numeric())
+  expect_no_error(check_pred_grid(obs, metadata, predictors))
+  expect_message(check_pred_grid(obs, metadata, predictors),
+                 message("prediction grid content: ", emoji("white_check_mark")))
+  
+})
+
+
+test_that("Check create_sets_rndst works", {
   
   # -- 1st example: obs is not a data.table 
   obs <- "hello"
-  expect_error(create_sets_rdnst(obs), "obs is not a data.table")
+  expect_error(create_sets_rndst(obs), "obs is not a data.table")
   
   # -- 2nd example: obs is empty 
   obs <- data.table()
-  expect_error(create_sets_rdnst(obs), "obs is empty")
+  expect_error(create_sets_rndst(obs), "obs is empty")
   
   # -- 3rd example: sounds good, check test and train dimensions, class
   obs <- fread(paste0("../input/",
@@ -23,7 +85,7 @@ test_that("Check create_sets_rdnst works", {
                       "-space-time-covariates.csv"))
   p <- c(as.Date("2022-08-01"), as.Date("2022-08-02"))
   obs <- obs[date %in% p, ]
-  sets <- create_sets_rdnst(obs)
+  sets <- create_sets_rndst(obs)
   train <- sets$train
   test <- sets$test
   expect_equal(nrow(obs), nrow(test)+nrow(train))
@@ -33,15 +95,15 @@ test_that("Check create_sets_rdnst works", {
 })
 
 
-test_that("Check create_sets_rdns works", {
+test_that("Check create_sets_rnds works", {
   
   # -- 1st example: obs is not a data.table 
   obs <- "hello"
-  expect_error(create_sets_rdns(obs), "obs is not a data.table")
+  expect_error(create_sets_rnds(obs), "obs is not a data.table")
   
   # -- 2nd example: obs is empty 
   obs <- data.table()
-  expect_error(create_sets_rdns(obs), "obs is empty")
+  expect_error(create_sets_rnds(obs), "obs is empty")
   
   # -- 3rd example: sounds good, check test and train dimensions, class
   obs <- fread(paste0("../input/",
@@ -50,7 +112,7 @@ test_that("Check create_sets_rdns works", {
                       "-space-time-covariates.csv"))
   p <- c(as.Date("2022-08-01"), as.Date("2022-08-02"))
   obs <- obs[date %in% p, ]
-  sets <- create_sets_rdns(obs)
+  sets <- create_sets_rnds(obs)
   train <- sets$train
   test <- sets$test
   expect_equal(nrow(obs), nrow(test)+nrow(train))

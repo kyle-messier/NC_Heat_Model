@@ -1,0 +1,82 @@
+---
+title: "open-project-spatial-covariates.R"
+output: html_document
+date: "2023-08-22"
+---
+
+Libraries
+
+```{r, message=F}
+library(terra)
+library(sf)
+library(ggplot2)
+library(ggspatial)
+library(tidyterra)
+library(rgeos)
+library(data.table) # -- for large flat datasets
+```
+
+Open data
+
+```{r}
+imp <- rast("../input/NC_imperviousness_2019.tif")
+tcc <-  rast("../input/NC_tree-canopy-cover_2021.tif")
+build.fp <-  rast("../input/NC_building-footprints/NorthCarolina_sum.tif")
+build.h <-  vect("../input/NC_building-height-by-block/NC_building-heights-by-block.shp")
+dem <- rast("../input/NC-DEM.tif")
+```
+
+```{r}
+crs(imp)
+cat('\n')
+crs(tcc)
+cat('\n')
+crs(build.fp)
+cat('\n')
+crs(build.h)
+cat('\n')
+crs(dem)
+```
+
+Choose a projection
+
+```{r}
+crs.meters <- "+proj=lcc +lat_0=33.75 +lon_0=-79 +lat_1=36.1666666666667 +lat_2=34.3333333333333 +x_0=609601.219202439 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+crs.wgs84 <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
+#crs <- crs.meters
+#crs.name <- "crs-meters"
+crs <- crs.wgs84
+crs.name <- "crs-wgs84"
+
+cat(crs)
+```
+
+Project data and save the data
+
+```{r}
+# -- imperviousness
+imp.p <- project(imp, crs)
+writeRaster(imp.p, filename=paste0("../input/NC_imperviousness_2019_", crs.name,".tif"), overwrite=T)
+
+# -- tree canopy cover
+tcc.p <- project(tcc, crs)
+writeRaster(tcc.p, filename=paste0("../input/NC_tree-canopy-cover_2021_", crs.name,".tif"), overwrite=T)
+
+# -- building footprint
+build.fp.p <- project(build.fp, crs)
+writeRaster(build.fp.p, filename=paste0("../input/NC_building-footprints/NorthCarolina_sum_", crs.name,".tif"), overwrite=T)
+
+# -- building height
+build.h.p <- project(build.h, crs)
+writeVector(build.h.p, filename=paste0("../input/NC_building-height-by-block/NC_building-heights-by-block_", crs.name,".shp"), overwrite=T)
+
+# -- digital elevation model
+dem.p <- project(dem, crs)
+writeRaster(dem.p, filename=paste0("../input/NC-DEM_", crs.name,".tif"), overwrite=T)
+```
+
+Important: it sounds like there are missing tiles in building footprint data. An explanation can be found in the paper Heris, M.P., Foks, N., Bagstad, K., and Troy, A., 2020, A national dataset of rasterized building footprints for the U.S.: U.S. Geological Survey data release, <https://doi.org/10.5066/P9J2Y1WG.>:
+
+"*We also identified systematic gaps in the Microsoft data for some geographic areas. These larger gaps seem to have a tile pattern, where aerial photos may have been unavailable to the Microsoft building detection algorithm"*
+
+Their computational algorithm is applied to Microsoft released a U.S.-wide vector building dataset provided in 2018 but this dataset has missing tiles.

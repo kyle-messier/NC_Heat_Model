@@ -1,0 +1,586 @@
+---
+title: "map-nc-land-covariates"
+output: html_document
+date: "2023-07-18"
+---
+
+Libraries
+
+```{r, results='hide', echo=F}
+# -- for spatial data
+#library(raster)   # -- old
+#library(rgdal)    # -- deprecated in 10/2023
+#library(rgeos)    # -- deprecated in 10/2023
+#library(maptools) # -- deprecated in 10/2023
+options("sp_evolution_status" = 2) # use sf instead of rgdal and rgeos in sp
+library(sp)
+library(terra)
+library(ncdf4)
+
+# -- for timeseries
+library(lubridate)
+library(zoo)
+library(xts)
+
+# -- 
+library(ggplot2)
+library(ggspatial)
+library(tidyterra)
+library(maditr)
+library(tidyverse)
+library(viridis)
+```
+
+#### NC shapefile
+
+```{r, warning=FALSE}
+nc.borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp")
+```
+
+```{r, echo=F}
+crs(nc.borders)
+```
+
+## NOAA aws analysis
+
+```{r}
+aws <- data.table::fread("../input/NC-AWS-NOAA-dailysummary-20220601-20220831.csv") 
+length(unique(aws$STATION))
+aws <- aws[which(!(is.na(aws$TMAX)|is.na(aws$TMIN))),] 
+aws$DATE <- as.Date(aws$DATE, format = "%Y-%m-%d")
+length(unique(aws$STATION))
+```
+
+Daily max temperatures
+
+```{r, message=FALSE}
+aws.ts.tx <- maditr::dcast(aws[, c('DATE', 'STATION', 'TMAX')], DATE ~ STATION) %>%
+  as.xts() 
+plot(aws.ts.tx)
+
+nb.na.tx <- lapply(aws.ts.tx, FUN=function(x) sum(is.na(x)))  
+nb.na.tx <- as.data.frame(do.call(rbind, nb.na.tx))
+nb.na.tx <- cbind(STATION = rownames(nb.na.tx), nb.na.tx)
+rownames(nb.na.tx) <- 1:nrow(nb.na.tx)
+names(nb.na.tx)[names(nb.na.tx) == 'V1'] <- 'nb.na.tx'
+
+```
+
+Daily min temperatures
+
+```{r, message=FALSE}
+aws.ts.tn <- maditr::dcast(aws[, c('DATE', 'STATION', 'TMIN')], DATE ~ STATION) %>%
+  as.xts() 
+#plot(aws.ts.tn)
+boxplot(t(aws.ts.tx))
+
+nb.na.tn <- lapply(aws.ts.tn, FUN=function(x) sum(is.na(x)))  
+nb.na.tn <- as.data.frame(do.call(rbind, nb.na.tn))
+nb.na.tn <- cbind(STATION = rownames(nb.na.tn), nb.na.tn)
+rownames(nb.na.tn) <- 1:nrow(nb.na.tn)
+names(nb.na.tn)[names(nb.na.tn) == 'V1'] <- 'nb.na.tn'
+```
+
+Daily mean temperatures
+
+```{r, message=FALSE}
+aws.ts.tm <- maditr::dcast(aws[, c('DATE', 'STATION', 'TAVG')], DATE ~ STATION) %>%
+  as.xts() 
+plot(aws.ts.tm)
+
+nb.na.tm <- lapply(aws.ts.tm, FUN=function(x) sum(is.na(x)))  
+nb.na.tm <- as.data.frame(do.call(rbind, nb.na.tm))
+nb.na.tm <- cbind(STATION = rownames(nb.na.tm), nb.na.tm)
+rownames(nb.na.tm) <- 1:nrow(nb.na.tm)
+names(nb.na.tm)[names(nb.na.tm) == 'V1'] <- 'nb.na.tm'
+```
+
+Map NOAA aws with less than 5% missing data
+
+```{r , message=FALSE}
+stations <- unique(aws[,c('STATION', 'NAME', 'LATITUDE', 'LONGITUDE', 'ELEVATION')])
+stations <- list(stations, nb.na.tx, nb.na.tn, nb.na.tm) %>% reduce(full_join, by='STATION')
+aws <- list(aws, nb.na.tx, nb.na.tn, nb.na.tm) %>% reduce(full_join, by='STATION')
+
+# -- turn into a sf object to reproject CRS
+stations <- st_as_sf(stations, coords=c('LONGITUDE', 'LATITUDE'))
+st_crs(stations) <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
+stations <- st_transform(stations, crs(nc.borders))
+stations <- data.frame(stations)
+
+ggplot() + 
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry),
+               colour = "grey", fill = NA) +
+  geom_sf(data = stations[which(stations$nb.na.tx<=5),], aes(geometry=geometry),
+             size=.5, fill = NA)+
+  scale_color_discrete(name="")
+```
+
+Map minimum temperatures on 2022-07-07 (one of the hottest day)
+
+```{r, message=F}
+# -- turn into a sf object to reproject CRS
+aws <- st_as_sf(aws, coords=c('LONGITUDE', 'LATITUDE'))
+st_crs(aws) <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
+aws <- st_transform(aws, crs(nc.borders))
+aws <- data.frame(aws)
+
+ggplot() + 
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "grey", fill = NA) +
+  geom_sf(data = aws[which(aws$DATE==as.Date("2022-07-07")),], 
+             aes(geometry=geometry, color=(TMIN-32)*5/9), 
+             size=2)+
+  scale_color_viridis(option = "H")
+```
+
+## Spatial covariates maps
+
+Create entent for RTP area if we want to plot a zoom
+
+```{r}
+lat <- c(35.6, 36.11, 36.11, 35.6)
+lon <- c(-79.19, -79.10, -78.39, -78.39)
+ext.rtp <- vect(cbind(lon, lat), type="points", crs="+proj=longlat +datum=WGS84")
+ext.rtp <- project(ext.rtp, crs(nc.borders))
+ext(ext.rtp)
+```
+
+### Digital Elevation Model (DEM)
+
+Open all .TIF files and merge them to create a single DEM file for the entire NC.
+
+```{r, eval=F}
+dir <- "../input/NC_DEM/"
+files <- list.files(path=dir, full.names = TRUE)
+rasters <- lapply(files, FUN = rast)
+rasters <- sprc(rasters)
+dem <- merge(rasters)
+terra::writeRaster(dem, "../input/NC-DEM.tif")
+```
+
+Plot DEM
+
+```{r, eval=F}
+dem <- rast("../input/NC-DEM.tif")
+dem <- project(dem, crs.meters)
+dem.rtp <- crop(dem, ext.rtp)
+
+p.dem <- ggplot() +
+  geom_spatraster(data = dem) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "grey", linewidth=.3, fill = NA) +
+  scale_fill_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "m"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE),
+    na.value=NA
+  ) +
+  labs(
+    fill = "",
+    title = "Digital Elevation Model (DEM)"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+
+p.dem.rtp <- ggplot() +
+  geom_spatraster(data = dem.rtp) +
+  scale_fill_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "m"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE),
+    na.value=NA
+  ) +
+  labs(
+    fill = "",
+    title = "Digital Elevation Model (DEM) Duhram-Raleigh-Chapel Hill"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+```
+
+### Imperviousness
+
+```{r}
+imp <- rast("../input/NC_imperviousness_2019.tif")
+imp <- project(imp, crs.meters)
+
+imp.plot <- ifel(imp==0, NA, imp)
+imp.plot.rtp <- crop(imp.plot, ext.rtp)
+
+p.imp <- ggplot() +
+  geom_spatraster(data = imp.plot) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "grey", linewidth=.3, fill = NA) +
+  scale_fill_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "%"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE),
+    na.value=NA
+  ) +
+  labs(
+    fill = "",
+    title = "Imperviousness"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+
+p.imp.rtp <- ggplot() +
+  geom_spatraster(data = imp.plot.rtp) +
+  scale_fill_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "%"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE),
+    na.value=NA
+  ) +
+  labs(
+    fill = "",
+    title = "Imperviousness Duhram-Raleigh-Chapel Hill"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+
+```
+
+### Tree canopy cover
+
+```{r}
+tcc <-  rast("../input/NC_tree-canopy-cover_2021.tif")
+tcc <- project(tcc, crs.meters)
+
+tcc.plot <- ifel(tcc!=0, tcc, NA)
+tcc.plot.rtp <- crop(tcc.plot, ext.rtp)
+
+p.tcc <- ggplot() +
+  geom_spatraster(data = tcc.plot) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "white", linewidth=.3, fill = NA) +
+  scale_fill_whitebox_c(
+    palette = "gn_yl",
+    direction=-1,
+    labels = scales::label_number(suffix = "%"),
+    n.breaks = 12,
+    limits=c(0,100),
+    guide = guide_legend(reverse = T),
+    na.value=NA
+  ) +
+  labs(
+    fill = "",
+    title = "Tree canopy cover"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+
+p.tcc.rtp <- ggplot() +
+  geom_spatraster(data = tcc.plot.rtp) +
+  scale_fill_whitebox_c(
+    palette = "gn_yl",
+    direction=-1,
+    labels = scales::label_number(suffix = "%"),
+    n.breaks = 12,
+    limits=c(0,100),
+    guide = guide_legend(reverse = T),
+    na.value=NA
+  ) +
+  labs(
+    fill = "",
+    title = "Tree canopy cover Duhram-Raleigh-Chapel Hill"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+```
+
+### Building footprint
+
+Important: it sounds like there are missing tiles in the data. An explanation can be found in the paper Heris, M.P., Foks, N., Bagstad, K., and Troy, A., 2020, A national dataset of rasterized building footprints for the U.S.: U.S. Geological Survey data release, <https://doi.org/10.5066/P9J2Y1WG.>:
+
+"*We also identified systematic gaps in the Microsoft data for some geographic areas. These larger gaps seem to have a tile pattern, where aerial photos may have been unavailable to the Microsoft building detection algorithm"*
+
+Their computational algorithm is applied to Microsoft released a U.S.-wide vector building dataset provided in 2018 but this dataset has missing tiles.
+
+```{r}
+build.fp <-  rast("../input/NC_building-footprints/NorthCarolina_sum.tif")
+build.fp <- project(build.fp, crs.meters)
+
+build.fp.plot <- ifel(build.fp!=0, build.fp, NA)
+build.fp.rtp <- crop(build.fp.plot, ext.rtp)
+
+p.build.fp <- ggplot() +
+  geom_spatraster(data = build.fp.plot) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "white", linewidth=.3, fill = NA) +
+  scale_fill_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = ""),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  labs(
+    fill = "",
+    title = "Building footprint (m^2)"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+
+p.build.fp.rtp <- ggplot() +
+  geom_spatraster(data = build.fp.rtp) +
+  scale_fill_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = ""),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  labs(
+    fill = "",
+    title = "Building footprint (m^2) Duhram-Raleigh-Chapel Hill"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+```
+
+### Building height
+
+```{r}
+build.h <-  vect("../input/NC_building-height-by-block/NC_building-heights-by-block.shp")
+build.h <- project(build.h, crs.meters)
+build.h.rtp <- crop(build.h, ext.rtp)
+
+p.build.h <- ggplot() +
+  geom_spatvector(data = build.h, aes(fill=Height_cat), color=NA) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "white", linewidth=.3, fill = NA) +
+  scale_fill_manual(
+    breaks = c("Low", "Low-medium", "Medium", "Medium-High", "High", "Very high"),
+    values = c("#38a700" ,"#d0ff73","#feebbf","#ff7f7e","#e60100", "#720000")
+  ) +
+  labs(
+    fill = "",
+    title = "Building height by block"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+
+p.build.h.rtp <- ggplot() +
+  geom_spatvector(data = build.h.rtp, aes(fill=Height_cat), color=NA) +
+  scale_fill_manual(
+    breaks = c("Low", "Low-medium", "Medium", "Medium-High", "High", "Very high"),
+    values = c("#38a700" ,"#d0ff73","#feebbf","#ff7f7e","#e60100", "#720000")
+  ) +
+  labs(
+    fill = "",
+    title = "Building height by block Duhram-Raleigh-Chapel Hill"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+
+```
+
+### Maps
+
+```{r}
+p.dem
+p.tcc
+p.imp
+p.build.fp
+p.build.h
+
+p.dem.rtp
+p.tcc.rtp
+p.imp.rtp
+p.build.fp.rtp
+p.build.h.rtp
+```
+
+## Meteorological covariates
+
+See era5-reanalysis-processing.Rmd
+
+#### Session info
+
+```{r}
+sessionInfo()
+```

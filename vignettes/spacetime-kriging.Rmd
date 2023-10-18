@@ -1,0 +1,459 @@
+---
+title: "space-time kriging"
+output: html_document
+date: "2023-08-29"
+---
+
+Libraries
+
+```{r, message=F}
+library(gstat)
+library(data.table)
+library(terra) 
+library(sf)
+library(sftime)
+library(tidyverse)
+library(ggplot2)
+library(ggspatial)
+library(tidyterra)
+library(rgeos)
+library(data.table) # -- for large flat datasets
+library(DT)
+
+# -- for timeseries
+library(lubridate)
+library(xts)
+```
+
+#### Open data
+
+```{r}
+obs <- fread("../input/NC-monitors-dailysummary-20220601-20220831-space-time-covariates.csv")
+nc.borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp")
+```
+
+Specific period
+
+```{r}
+p <- seq(as.Date('2022-07-20'), as.Date('2022-08-01'), by='1 day')
+p <- as.character(p)
+
+list.pred <- list()
+for(d in p){
+  pred.d <- fread(paste0("../input/prediction-grid/prediction_grid_points_urb_rur_space_time_covariates_", d, ".csv"))
+  list.pred <- append(list.pred, list(pred.d))
+}
+pred.p <- rbindlist(list.pred, fill=TRUE)
+obs.p <- obs[date %in% p,]
+```
+
+Convert to sftime and choose a projection in meters
+
+```{r}
+obs.p$date <- as.Date(obs.p$date)
+obs.p.sft <- st_as_sftime(obs.p, 
+                  coords=c('lon', 'lat'),
+                  remove=F,
+                  crs="+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0", 
+                  time_column_name = 'date')
+pred.p$date <- as.Date(pred.p$date)
+pred.p.sft <- st_as_sftime(pred.p, 
+                    coords=c('lon', 'lat'),
+                    remove=F,
+                    crs="+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0", 
+                    time_column_name = 'date')
+ 
+crs.meters <- "+proj=lcc +lat_0=33.75 +lon_0=-79 +lat_1=36.1666666666667 +lat_2=34.3333333333333 +x_0=609601.219202439 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+
+nc.borders <- project(nc.borders, crs.meters)
+obs.p.sft <- st_transform(obs.p.sft, crs.meters)
+pred.p.sft <- st_transform(pred.p.sft, crs.meters)
+
+# -- store c(lon,lat) columns in crs.meters (instead of wgs84) 
+obs.p.sft <- obs.p.sft %>%
+    mutate(lon = unlist(map(obs.p.sft$geometry,1)),
+           lat = unlist(map(obs.p.sft$geometry,2)))
+
+pred.p.sft <- pred.p.sft %>%
+    mutate(lon = unlist(map(pred.p.sft$geometry,1)),
+           lat = unlist(map(pred.p.sft$geometry,2)))
+```
+
+Before removing NA, reconvert to data.table to easily create STFDF
+
+```{r}
+obs.p <- as.data.table(obs.p.sft)
+obs.p <- obs.p[, geometry:=NULL]
+```
+
+Remove NA in obs.p.sft
+
+```{r}
+obs.p.sft <- obs.p.sft[!is.na(obs.p.sft$tmin) & !is.na(obs.p.sft$tmax),]
+```
+
+#### Variogram analysis
+
+Convert DT to STFDF for gstat compatibility
+
+```{r}
+library(spacetime)
+obs.p$date <- as.Date(obs.p$date)
+obs.STFDF <- stConstruct(x=obs.p, space=c('lon', 'lat'), time='date', crs=CRS(crs.meters))
+obs.STFDF <- as(obs.STFDF,'STFDF')
+```
+
+Directions: 0=north, 90=east, 180=south, 270=west
+
+```{r}
+cutoff=30000 
+width=3000
+
+plot(variogram(tmin ~ 1, obs.STFDF, cutoff=cutoff, width=width, tlags=0:8, alpha=180), wireframe=T, main='sample semivariogram')
+```
+
+TOBECONTINUEDDDDD
+
+Variogram model
+
+```{r}
+cutoff <- 100000
+v.emp <- variogram(tmin ~ 1, obs.p, cutoff=cutoff, width=width)
+
+nugget <- 0.5
+range <- 20000
+vgm.sph <- vgm(psill=3, "Sph", range=range, nugget=0.5, cutoff=cutoff)
+plot(v.emp, vgm.sph, cutoff=cutoff)
+
+vgm.exp <- vgm(psill=3, "Exp", range=range, nugget=0.5, cutoff=cutoff)
+plot(v.emp, vgm.exp, cutoff=cutoff)
+
+vgm.mat <- vgm(psill=3, "Mat", range=range, nugget=0.5, cutoff=cutoff)
+plot(v.emp, vgm.mat, cutoff=cutoff)
+```
+
+Fit Matern model
+
+```{r}
+v.fit <- fit.variogram(v.emp, vgm.mat, fit.range=F)
+plot(v.emp, v.fit)
+```
+
+## Spatial kriging
+
+#### Ordinary kriging
+
+```{r}
+cutoff <- 100000
+nugget <- 0.5
+range <- 20000
+width <- 1000
+v.emp <- variogram(tmin ~ 1, obs.p, cutoff=cutoff, width=width)
+vgm.mat <- vgm(psill=3, "Mat", range=range, nugget=nugget, cutoff=cutoff)
+v.fit <- fit.variogram(v.emp, vgm.mat, fit.range=F)
+ok <- gstat::krige(tmin ~ 1, obs.p, newdata=pred.p, v.fit)
+```
+
+```{r}
+m <- ggplot() +
+  geom_spatvector(data = vect(ok), aes(color=var1.pred), size=.1) +
+  geom_sf(data = obs.p, aes(geometry=geometry, color=tmin)) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "grey", linewidth=.3, fill = NA) +
+  scale_color_whitebox_c(
+      palette = "muted",
+      labels = scales::label_number(suffix = "°C"),
+      n.breaks = 12,
+      guide = guide_legend(reverse = TRUE)
+  ) +
+  labs(
+    fill = "",
+    title = "Ordinary kriging"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+m
+```
+
+#### Universal kriging
+
+```{r}
+cutoff <- 100000
+nugget <- 0.5
+range <- 20000
+width <- 1000
+v.emp <- variogram(tmin ~ dem + imp + TN12am + tcc + build.fp, obs.p, cutoff=cutoff, width=width)
+vgm.mat <- vgm(psill=2, "Mat", range=range, nugget=nugget, cutoff=cutoff)
+plot(v.emp, vgm.mat)
+```
+
+```{r}
+v.fit <- fit.variogram(v.emp, vgm.mat, fit.range=F)
+plot(v.emp, v.fit)
+uk <- gstat::krige(tmin ~ dem + imp + TN12am + tcc + build.fp, obs.p, newdata=pred.p, v.fit)
+```
+
+```{r}
+m <- ggplot() +
+  geom_spatvector(data = vect(uk), aes(color=var1.pred), size=.1) +
+  geom_sf(data = obs.p, aes(geometry=geometry, color=tmin)) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "grey", linewidth=.3, fill = NA) +
+  scale_color_whitebox_c(
+      palette = "muted",
+      labels = scales::label_number(suffix = "°C"),
+      n.breaks = 12,
+      guide = guide_legend(reverse = TRUE)
+  ) +
+  labs(
+    fill = "",
+    title = "Universal kriging"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+m
+```
+
+Same without ERA5
+
+```{r}
+cutoff <- 100000
+nugget <- 0.5
+range <- 20000
+width <- 1000
+v.emp <- variogram(tmin ~ dem + imp + tcc + build.fp, obs.p, cutoff=cutoff, width=width)
+vgm.mat <- vgm(psill=3, "Mat", range=range, nugget=nugget, cutoff=cutoff)
+plot(v.emp, vgm.mat)
+v.fit <- fit.variogram(v.emp, vgm.mat, fit.range=F, fit.sill=F)
+plot(v.emp, v.fit)
+uk <- gstat::krige(tmin ~ dem + imp + tcc + build.fp, obs.p, newdata=pred.p, v.fit)
+```
+
+```{r}
+plot.uk.noera5 <- ggplot() +
+  geom_spatvector(data = vect(uk), aes(color=var1.pred), size=.1) +
+  geom_sf(data = obs.p, aes(geometry=geometry, color=tmin)) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "grey", linewidth=.3, fill = NA) +
+  scale_color_whitebox_c(
+      palette = "muted",
+      labels = scales::label_number(suffix = "°C"),
+      n.breaks = 12,
+      guide = guide_legend(reverse = TRUE)
+  ) +
+  labs(
+    fill = "",
+    title = "Universal kriging"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+plot.uk.noera5
+```
+
+Zoom on RTP area
+
+```{r}
+lat <- c(35.6, 36.11, 36.11, 35.6)
+lon <- c(-79.19, -79.10, -78.39, -78.39)
+ext.rtp <- vect(cbind(lon, lat), type="points", crs="+proj=longlat +datum=WGS84")
+ext.rtp <- project(ext.rtp, crs.meters)
+ext(ext.rtp)
+```
+
+```{r}
+uk.rtp <- crop(vect(uk), ext.rtp)
+imp.rtp <- crop(vect(pred.p[,'imp']), ext.rtp)
+obs.rtp <- crop(vect(obs.p), ext.rtp)
+
+ggplot() +
+  geom_spatvector(data = uk.rtp, aes(color=var1.pred), size=.1) +
+  geom_spatvector(data = obs.rtp, aes(color=tmin), shape=1, size=2) +
+  #geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+  #             colour = "grey", linewidth=.3, fill = NA) +
+  scale_color_whitebox_c(
+      palette = "muted",
+      labels = scales::label_number(suffix = "°C"),
+      n.breaks = 12,
+      guide = guide_legend(reverse = TRUE)
+  ) +
+  labs(
+    fill = "",
+    title = "Universal kriging RTP"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+
+ggplot() +
+  geom_spatvector(data = imp.rtp, aes(color=imp), size=.1) +
+  geom_spatvector(data = obs.rtp, color='black', fill='black', shape=16, size=2) +
+  scale_color_whitebox_c(
+      palette = "muted",
+      labels = scales::label_number(suffix = "%"),
+      n.breaks = 12,
+      guide = guide_legend(reverse = TRUE)
+  ) +
+  labs(
+    fill = "",
+    title = "Imperviousness RTP"
+  ) +
+  annotation_scale(
+    location="bl", pad_x = unit(1, "cm"), 
+		pad_y = unit(1, "cm"), 
+		height = unit(0.30, "cm"), 
+		text_cex = 1
+	) +
+	annotation_north_arrow(
+	  location = "br", 
+	  which_north = "true", 
+		pad_x = unit(0.2, "cm"), 
+		pad_y = unit(0.2, "cm")
+	) +
+	theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+```
+
+10-fold cross validation
+
+```{r}
+uk.loocv <- krige.cv(tmin ~ dem + imp + tcc + build.fp, obs.p, v.fit, nfold=nrow(obs.p))
+uk.loocv
+uk.10cv <- krige.cv(tmin ~ dem + imp + tcc + build.fp, obs.p, v.fit, nfold=10)
+uk.10cv
+```
+
+RMSE computation
+
+```{r}
+RMSE.loocv <- sqrt(sum(uk.loocv$residual**2)/nrow(uk.loocv))
+RMSE.10cv <- sqrt(sum(uk.10cv$residual**2)/nrow(uk.10cv))
+cat('RMSE with loocv:', RMSE.loocv, '°C\n')
+cat('RMSE with 10cv: ', RMSE.10cv, '°C')
+```
+
+Residuals
+
+```{r}
+ggplot(uk.loocv)+
+  geom_point(aes(y=var1.pred, x=observed))+
+  geom_abline(aes(slope=1, intercept=0), color='red')
+
+ggplot(uk.10cv)+
+  geom_point(aes(y=var1.pred, x=observed))+
+  geom_abline(aes(slope=1, intercept=0), color='red')
+
+pal.res <- RColorBrewer::brewer.pal(10, "RdBu")
+
+ggplot()+
+  geom_sf(data = uk.loocv, aes(geometry=geometry, color=residual)) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "grey", linewidth=.3, fill = NA) +
+  scale_color_steps2(low='blue', mid='white', high='red', limits=c(-5,5), n.breaks=10)+
+  theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+
+ggplot()+
+  geom_sf(data = uk.10cv, aes(geometry=geometry, color=residual)) +
+  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
+               colour = "grey", linewidth=.3, fill = NA) +
+  scale_color_steps2(low='blue', mid='white', high='red', limits=c(-5,5), n.breaks=10)+
+  theme(
+			axis.text = element_text(size=12, family="serif"),
+			plot.caption = element_text(size=10, family="serif"),
+			legend.text = element_text(size=12, family="serif"),
+			legend.title = element_text(size=12, family="serif"),
+			panel.background = element_rect(fill = "white"),
+			panel.grid.major=element_line(colour="grey")
+		)
+
+```
+
+```{r}
+head(uk.loocv)
+ggplot()+
+  geom_sf(data = uk.10cv, aes(geometry=geometry, color=fold))+
+  
+```

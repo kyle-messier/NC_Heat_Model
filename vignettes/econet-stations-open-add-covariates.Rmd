@@ -1,0 +1,207 @@
+---
+title: "econet-stations-open-add-covariates"
+output: html_document
+date: "2023-08-25"
+---
+
+#### Libraries
+
+```{r, message=F}
+library(terra)
+library(sf)
+library(sftime)
+
+library(ggplot2)
+library(ggspatial)
+library(tidyterra)
+library(rgeos)
+library(data.table) # -- for large flat datasets
+library(DT)
+
+# -- for timeseries
+library(lubridate)
+library(xts)
+
+library(purrr)
+library(openxlsx)
+```
+
+#### Open and merge ECONET excel files
+
+```{r}
+files <- list.files(path="../input/ECONET-stations/", pattern = "M*.xlsx")
+files
+eco <- do.call("rbind", lapply(files, FUN = function(file) {
+  read.xlsx(paste0("../input/ECONET-stations/", file)) 
+}))
+
+```
+
+Reformat the data
+
+```{r}
+colnames(eco) <- c('date', 'tmax', 'tmin', 'station', 'network', 'city', 'county', 'lat', 'lon', 'alt', 'support')
+eco[eco=='QCF'] <- NA
+eco$tmax <- as.numeric(eco$tmax)
+eco$tmin <- as.numeric(eco$tmin)
+eco$date <- as.Date(eco$date, format = "%Y-%m-%d")
+eco <- st_as_sftime(eco, 
+                    coords=c('lon', 'lat'),
+                    remove=F,
+                    crs="+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
+                    time_column_name='date')
+```
+
+Fahrenheit to Celsius
+
+```{r}
+eco$tmin <- (eco$tmin-32)*5/9
+eco$tmax <- (eco$tmax-32)*5/9
+```
+
+#### Map of a single day
+
+```{r}
+eco.plot <- eco[which(eco$date=="2022-06-03"),]
+ggplot()+
+geom_point(data = eco.plot, 
+             aes(x=lon, y=lat, color=tmin), size=2)+
+   scale_color_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "ºC"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  coord_equal()
+
+```
+
+#### Time series
+
+```{r}
+ggplot(eco)+
+  geom_line(aes(x=date, y=tmin, group=station, color=station))+
+  theme(legend.text=element_blank())
+
+ggplot(eco)+
+  geom_point(aes(x=date, y=station, color=is.na(tmin)), shape=15, linewidth=.5)+
+  scale_color_manual(values=c("grey", "red"))+
+  theme(legend.text=element_blank())
+
+ggplot(eco)+
+  geom_point(aes(x=date, y=station, color=is.na(tmax)), shape=15, linewidth=.5)+
+  scale_color_manual(values=c("grey", "red"))+
+  theme(legend.text=element_blank())
+
+ggplot(eco)+
+  geom_point(aes(x=date, y=station, color=tmin), shape=15, linewidth=.5)+
+  scale_color_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "ºC"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) 
+
+ggplot(eco)+
+  geom_point(aes(x=date, y=station, color=tmax), shape=15, linewidth=.5)+
+  scale_color_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "ºC"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) 
+```
+
+#### Open and add spatial covariates
+
+```{r}
+# -- imperviousness
+imp <- rast("../input/NC_imperviousness_2019_crs-wgs84.tif")
+# -- tree canopy cover
+tcc <-  rast("../input/NC_tree-canopy-cover_2021_crs-wgs84.tif")
+# -- building footprint 
+build.fp <-  rast("../input/NC_building-footprints/NorthCarolina_sum_crs-wgs84.tif")
+# -- building height
+build.h <-  vect("../input/NC_building-height-by-block/NC_building-heights-by-block_crs-wgs84.shp")
+# -- digital elevation model 
+dem <- rast("../input/NC-DEM_crs-wgs84.tif")
+```
+
+Add space covariates
+
+```{r}
+stations.spatcov <- unique(eco[, c('station')])
+stations.spatcov <- terra::extract(imp, stations.spatcov, bind=T) 
+stations.spatcov <- terra::extract(tcc, stations.spatcov, fun='mean', method='bilinear', bind=T)
+stations.spatcov <- terra::extract(build.fp, stations.spatcov, fun='mean', method='bilinear', bind=T) 
+stations.spatcov <- terra::extract(dem, stations.spatcov, bind=T) 
+
+# -- build.h is a vector and not a raster, bind=T doesn't work...
+stations0 <- terra::extract(build.h[,c("Height_cat")], stations.spatcov) 
+stations.spatcov$build.h <- stations0$Height_cat
+```
+
+#### Open and add time covariates
+
+```{r}
+crs.wgs84 = "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+stations.timecov <- unique(eco[,c('station')])
+era5.jja.vector.TNwmo <- rast('../input/era5_daily_reanalysis_20220601_20220831_TNwmo.tif')
+era5.jja.vector.TN7am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TN7am.tif')
+era5.jja.vector.TN12am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TN12am.tif')
+
+era5.jja.vector.TNwmo <- project(era5.jja.vector.TNwmo, crs.wgs84)
+era5.jja.vector.TN7am <- project(era5.jja.vector.TN7am, crs.wgs84)
+era5.jja.vector.TN12am <- project(era5.jja.vector.TN12am, crs.wgs84)
+
+stations.timecov.TNwmo <- terra::extract(era5.jja.vector.TNwmo, stations.timecov, bind=T) 
+stations.timecov.TN7am <- terra::extract(era5.jja.vector.TN7am, stations.timecov, bind=T) 
+stations.timecov.TN12am <- terra::extract(era5.jja.vector.TN12am, stations.timecov, bind=T) 
+
+era5.jja.vector.TXwmo <- rast('../input/era5_daily_reanalysis_20220601_20220831_TXwmo.tif')
+era5.jja.vector.TX7am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TX7am.tif')
+era5.jja.vector.TX12am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TX12am.tif')
+
+era5.jja.vector.TXwmo <- project(era5.jja.vector.TXwmo, crs.wgs84)
+era5.jja.vector.TX7am <- project(era5.jja.vector.TX7am, crs.wgs84)
+era5.jja.vector.TX12am <- project(era5.jja.vector.TX12am, crs.wgs84)
+
+stations.timecov.TXwmo <- terra::extract(era5.jja.vector.TXwmo, stations.timecov, bind=T) 
+stations.timecov.TX7am <- terra::extract(era5.jja.vector.TX7am, stations.timecov, bind=T) 
+stations.timecov.TX12am <- terra::extract(era5.jja.vector.TX12am, stations.timecov, bind=T) 
+
+df.stations.timecov.TNwmo <- melt(setDT(as.data.frame(stations.timecov.TNwmo)), id.vars = 'station', variable.name = 'date', value.name='TNwmo')
+df.stations.timecov.TN7am <- melt(setDT(as.data.frame(stations.timecov.TN7am)), id.vars = 'station', variable.name = 'date', value.name='TN7am')
+df.stations.timecov.TN12am <- melt(setDT(as.data.frame(stations.timecov.TN12am)), id.vars = 'station', variable.name = 'date', value.name='TN12am')
+df.stations.timecov.TXwmo <- melt(setDT(as.data.frame(stations.timecov.TXwmo)), id.vars = 'station', variable.name = 'date', value.name='TXwmo')
+df.stations.timecov.TX7am <- melt(setDT(as.data.frame(stations.timecov.TX7am)), id.vars = 'station', variable.name = 'date', value.name='TX7am')
+df.stations.timecov.TX12am <- melt(setDT(as.data.frame(stations.timecov.TX12am)), id.vars = 'station', variable.name = 'date', value.name='TX12am')
+
+df <- merge(df.stations.timecov.TNwmo, df.stations.timecov.TN7am, by=c('station', 'date'))
+df <- merge(df, df.stations.timecov.TN12am, by=c('station', 'date'))
+df <- merge(df, df.stations.timecov.TXwmo, by=c('station', 'date'))
+df <- merge(df, df.stations.timecov.TX7am, by=c('station', 'date'))
+df <- merge(df, df.stations.timecov.TX12am, by=c('station', 'date'))
+```
+
+Merge all extracted covariates to eco dataframe
+
+```{r}
+df$date <- as.Date(as.numeric(df$date), origin="2022-06-01")
+eco$date <- as.Date(eco$date)
+eco <- merge(df, eco, by=c('station','date'))
+
+eco <- merge(eco, stations.spatcov, by=c('station'))
+colnames(eco)[which(names(eco) == 'NC_imperviousness_2019')] <- 'imp'
+colnames(eco)[which(names(eco) == 'NC_tree-canopy-cover_2021')] <- 'tcc'
+colnames(eco)[which(names(eco) == 'NorthCarolina_sum')] <- 'build.fp'
+colnames(eco)[which(names(eco) == 'Layer_1')] <- 'dem'
+
+datatable(eco[,c('station', 'tmin', 'TNwmo', 'tmax', 'TXwmo', 'dem', 'imp', 'tcc', 'build.fp', 'build.h')], filter = 'top')
+```
+
+#### Save ECONET dataset with covariates
+
+```{r}
+fwrite(eco, "../input/NC-econet-dailysummary-20220601-20220831-space-time-covariates.csv")
+```

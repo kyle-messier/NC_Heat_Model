@@ -1,0 +1,472 @@
+---
+title: "spatiotemporal-variography"
+output: html_document
+date: "2023-08-23"
+---
+
+Libraries
+
+```{r, message=F}
+#library(raster)   # -- old
+#library(sp)       # -- old
+#library(rgdal)    # -- deprecated in 10/2023
+#library(rgeos)    # -- deprecated in 10/2023
+#library(maptools) # -- deprecated in 10/2023
+library(terra)
+library(sf)
+
+library(ggplot2)
+library(ggspatial)
+library(tidyterra)
+library(rgeos)
+library(data.table) # -- for large flat datasets
+
+# space-time variography
+library(gstat)
+```
+
+## Open observations
+
+```{r}
+aws <- fread("../input/NC-AWS-NOAA-dailysummary-20220601-20220831-space-time-covariates.csv")
+```
+
+#### Plot TMIN for each month
+
+```{r}
+ggplot(aws[between(DATE, as.Date('2022-05-31'), as.Date('2022-06-30'))])+
+  geom_point(aes(x=LONGITUDE, y=LATITUDE, color=TMIN))+
+  facet_wrap(~DATE)+
+  scale_color_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "°C"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  coord_equal()
+
+ggsave("../output/noaa_obs_202206_TMIN.png", width=15, height=5, dpi=300)
+
+ggplot(aws[between(DATE, as.Date('2022-07-01'), as.Date('2022-07-31'))])+
+  geom_point(aes(x=LONGITUDE, y=LATITUDE, color=TMIN))+
+  facet_wrap(~DATE)+
+  scale_color_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "°C"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  coord_equal()
+
+ggsave("../output/noaa_obs_202207_TMIN.png", width=15, height=6, dpi=300)
+
+ggplot(aws[between(DATE, as.Date('2022-08-01'), as.Date('2022-08-31'))])+
+  geom_point(aes(x=LONGITUDE, y=LATITUDE, color=TMIN))+
+  facet_wrap(~DATE)+
+  scale_color_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "°C"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  coord_equal()
+
+ggsave("../output/noaa_obs_202208_TMIN.png", width=15, height=6, dpi=300)
+```
+
+#### Plot TMAX for each month
+
+```{r}
+ggplot(aws[between(DATE, as.Date('2022-05-31'), as.Date('2022-06-30'))])+
+  geom_point(aes(x=LONGITUDE, y=LATITUDE, color=TMAX))+
+  facet_wrap(~DATE)+
+  scale_color_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "°C"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  coord_equal()
+
+ggsave("../output/noaa_obs_202206_TMAX.png", width=15, height=5, dpi=300)
+
+ggplot(aws[between(DATE, as.Date('2022-07-01'), as.Date('2022-07-31'))])+
+  geom_point(aes(x=LONGITUDE, y=LATITUDE, color=TMAX))+
+  facet_wrap(~DATE)+
+  scale_color_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "°C"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  coord_equal()
+
+ggsave("../output/noaa_obs_202207_TMAX.png", width=15, height=6, dpi=300)
+
+ggplot(aws[between(DATE, as.Date('2022-08-01'), as.Date('2022-08-31'))])+
+  geom_point(aes(x=LONGITUDE, y=LATITUDE, color=TMAX))+
+  facet_wrap(~DATE)+
+  scale_color_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "°C"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  coord_equal()
+
+ggsave("../output/noaa_obs_202208_TMAX.png", width=15, height=6, dpi=300)
+```
+
+```{r}
+ggplot(aws) +
+  	geom_tile(aes(x = as.factor(LONGITUDE), y = DATE, fill = TMIN)) +
+		scale_y_date(date_labels="%d/%m", date_breaks='7 days', 
+		  date_minor_breaks='1 day', 
+			limits=c(as.Date("2022-06-01", tz="UTC"), as.Date("2022-08-31", tz="UTC")))+
+    scale_fill_whitebox_c(
+      palette = "muted",
+      labels = scales::label_number(suffix = "°C"),
+      n.breaks = 12,
+      guide = guide_legend(reverse = TRUE)
+  ) +
+    ggtitle('TMIN')+
+		#guides(fill = guide_colourbar(barwidth = 1.5, barheight=22))+
+  	theme(axis.text.x = element_blank(),
+			      axis.text.y = element_text(size=16),
+		      	axis.title.x = element_text(size=22), 
+		      	axis.title.y = element_text(size=22),
+        		legend.key.width = unit(1, 'cm'), 
+        		panel.grid.major = element_line(color="grey", size=0.2),
+        		legend.text = element_text(size=16),
+        		plot.caption = element_text(size=14),
+        		legend.title = element_text(size=18),
+        		legend.text.align = 0,
+        		legend.box.spacing=unit(0, "pt"))
+
+ggplot(aws) +
+  	geom_tile(aes(x = as.factor(LONGITUDE), y = DATE, fill = TMAX)) +
+		scale_y_date(date_labels="%d/%m", date_breaks='7 days', 
+		             date_minor_breaks='1 day', 
+		             limits=c(as.Date("2022-06-01", tz="UTC"), as.Date("2022-08-31", tz="UTC")))+
+    scale_fill_whitebox_c(
+      palette = "muted",
+      labels = scales::label_number(suffix = "°C"),
+      n.breaks = 12,
+      guide = guide_legend(reverse = TRUE)
+  ) +
+    ggtitle('TMAX')+
+		#guides(fill = guide_colourbar(barwidth = 1.5, barheight=22))+
+  		theme(axis.text.x = element_blank(),
+			      axis.text.y = element_text(size=16),
+		      	axis.title.x = element_text(size=22), 
+		      	axis.title.y = element_text(size=22),
+        		legend.key.width = unit(1, 'cm'), 
+        		panel.grid.major = element_line(color="grey", size=0.2),
+        		legend.text = element_text(size=16),
+        		plot.caption = element_text(size=14),
+        		legend.title = element_text(size=18),
+        		legend.text.align = 0,
+        		legend.box.spacing=unit(0, "pt"))
+
+```
+
+TMIN and TMAX according to covariates
+
+```{r}
+ggplot(aws)+ 
+  geom_point(aes(x=LONGITUDE, y=TMIN), alpha=.2)
+
+ggplot(aws)+ 
+  geom_point(aes(x=LATITUDE, y=TMIN), alpha=.2)
+
+ggplot(aws)+ 
+  geom_point(aes(x=dem, y=TMIN), alpha=.2)
+
+ggplot(aws)+ 
+  geom_point(aes(x=tcc, y=TMIN), alpha=.2)
+
+ggplot(aws)+ 
+  geom_point(aes(x=build.fp, y=TMIN), alpha=.2)
+
+ggplot(aws)+ 
+  geom_point(aes(x=imp, y=TMIN), alpha=.2)
+
+ggplot(aws)+ 
+  geom_boxplot(aes(group=build.h, x=build.h, y=TMIN))
+```
+
+```{r}
+ggplot(aws)+ 
+  geom_point(aes(x=LONGITUDE, y=TMAX), alpha=.2)
+
+ggplot(aws)+ 
+  geom_point(aes(x=LATITUDE, y=TMAX), alpha=.2)
+
+ggplot(aws)+ 
+  geom_point(aes(x=dem, y=TMAX), alpha=.2)
+
+ggplot(aws)+ 
+  geom_point(aes(x=tcc, y=TMAX), alpha=.2)
+
+ggplot(aws)+ 
+  geom_point(aes(x=build.fp, y=TMAX), alpha=.2)
+
+ggplot(aws)+ 
+  geom_point(aes(x=imp, y=TMAX), alpha=.2)
+
+ggplot(aws)+ 
+  geom_boxplot(aes(group=build.h, x=build.h, y=TMAX))
+```
+
+```{r}
+summary.jja <- aws[, .(TMIN.mean=mean(TMIN), 
+                       TMAX.mean=mean(TMAX), 
+                       TMIN.min=min(TMIN), 
+                       TMAX.min=min(TMAX), 
+                       TMIN.max=max(TMIN), 
+                       TMAX.max=max(TMAX)), keyby=c('DATE')]
+
+```
+
+```{r}
+ggplot()+
+  geom_line(data=aws, aes(y=TMIN, x=DATE, group=STATION),color='navyblue', alpha=0.1)+
+  geom_line(data=summary.jja, aes(y=TMIN.mean, x=DATE),color='black', alpha=1, linewidth=.7)+
+  geom_line(data=summary.jja, aes(y=TMIN.min, x=DATE),color='black', alpha=1, linewidth=.7, linetype='dashed'
+)+
+  geom_hline(yintercept=20, color='orange')+
+  geom_line(data=summary.jja, aes(y=TMIN.max, x=DATE),color='black', alpha=1, linewidth=.7, linetype='dashed')+
+  theme_minimal()
+ggsave("../output/noaa_obs_jja_timeseries_TMIN.png", width=15, height=5, dpi=300)
+
+ggplot()+
+  geom_line(data=aws, aes(y=TMAX, x=DATE, group=STATION),color='red', alpha=0.1)+
+  geom_line(data=summary.jja, aes(y=TMAX.mean, x=DATE),color='black', alpha=1, linewidth=.7)+
+  geom_line(data=summary.jja, aes(y=TMAX.min, x=DATE),color='black', alpha=1, linewidth=.7, linetype='dashed')+
+  geom_hline(yintercept=35, color='orange')+
+  geom_line(data=summary.jja, aes(y=TMAX.max, x=DATE),color='black', alpha=1, linewidth=.7, linetype='dashed')+
+  theme_minimal()
+ggsave("../output/noaa_obs_jja_timeseries_TMAX.png", width=15, height=5, dpi=300)
+```
+
+#### Space-time covariography
+
+Create spacetime object from aws
+
+```{r}
+library(spacetime)
+aws <- aws[, ":="(DATE=as.Date(DATE)),]
+aws.st <- stConstruct(aws, space=c('LONGITUDE','LATITUDE'), time='DATE', SpatialObj=SpatialPoints(aws[,c('LONGITUDE','LATITUDE')]), crs=CRS("+proj=longlat +datum=WGS84"))
+aws.st <- as(aws.st,'STFDF')
+```
+
+Spatial autocorrelation for one single date
+
+```{r}
+library(gstat)
+date <- '2022-08-03'
+
+v <- variogram(TMIN~1, 
+               aws.st[!is.na(aws.st[,date,'TMIN']$TMIN),
+                      date,'TMIN'],
+               cutoff=20,
+               width=1)
+plot(v, main='TMIN')
+
+v <- variogram(tcc~1, 
+               aws.st[!is.na(aws.st[,date,'tcc']$tcc),
+                      date,'tcc'],
+               cutoff=20,
+               width=1)
+plot(v, main='tcc')
+
+v <- variogram(dem~1, 
+               aws.st[!is.na(aws.st[,date,'dem']$dem),
+                      date,'dem'],
+               cutoff=30,
+               width=2)
+plot(v, main='dem')
+```
+
+Mean variogram on multiple dates
+
+```{r}
+lst <- lapply(1:90,function(i){x=aws.st[,i,"TMIN"]; x$ti=i ; rownames(x@coords)=NULL;x})
+pts <- do.call(rbind,lst)
+vv <- variogram(TMIN~ti, 
+                pts[!is.na(pts$TMIN),],
+                cutoff=50,
+                width=2)
+plot(vv, main="TMIN")
+```
+
+Space-time semi-variogram
+
+```{r}
+vvst <- variogram(TMIN~1,
+                  aws.st[!is.na(aws.st[,,"TMIN"]$TMIN),,"TMIN"],
+                  width=5, 
+                  cutoff=80,
+                  tlags=0:8)
+plot(vvst, main='TMIN')
+plot(vvst, main='TMIN', map=FALSE)
+
+vvst <- variogram(TMAX~1,
+                  aws.st[!is.na(aws.st[,,"TMAX"]$TMAX),,"TMAX"],
+                  width=5, 
+                  cutoff=80,
+                  tlags=0:8)
+plot(vvst, main='TMAX')
+plot(vvst, main='TMAX', map=FALSE)
+```
+
+Covariates colinearities
+
+```{r}
+ggplot(aws[DATE=='2022-06-02'])+
+  geom_point(aes(x=tcc, y=imp), alpha=0.5)
+
+ggplot(aws[DATE=='2022-06-02'])+
+  geom_point(aes(x=tcc, y=build.fp/9), alpha=0.5)
+
+ggplot(aws[DATE=='2022-06-02'])+
+  geom_point(aes(x=imp, y=build.fp/9), alpha=0.5)
+
+ggplot(aws[DATE=='2022-06-02'])+
+  geom_point(aes(x=tcc, y=dem), alpha=0.5)
+
+ggplot(aws[DATE=='2022-06-02'])+
+  geom_point(aes(x=imp, y=dem), alpha=0.5)
+```
+
+```{r}
+ggplot(aws[DATE=='2022-06-02'])+
+  geom_point(aes(x=LONGITUDE, y=LATITUDE, color=dem))+
+  scale_color_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "m"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  coord_equal()
+
+ggplot(aws[DATE=='2022-06-02'])+
+  geom_point(aes(x=LONGITUDE, y=LATITUDE, color=tcc))+
+  scale_color_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "%"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  coord_equal()
+
+ggplot(aws[DATE=='2022-06-02'])+
+  geom_point(aes(x=LONGITUDE, y=LATITUDE, color=imp))+
+  scale_color_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "%"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  coord_equal()
+
+ggplot(aws[DATE=='2022-06-02'])+
+  geom_point(aes(x=LONGITUDE, y=LATITUDE, color=build.fp/900*100))+
+  scale_color_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "%"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  coord_equal()
+
+ggplot(aws[DATE=='2022-06-02'])+
+  geom_point(aes(x=LONGITUDE, y=LATITUDE, color=build.h))+
+  coord_equal()
+```
+
+PCA
+
+```{r}
+library(factoextra)
+res.pca <- prcomp(aws[DATE=='2022-06-02',.(dem, imp, tcc, build.fp, TX12am, TN12am)], scale = TRUE)
+fviz_eig(res.pca)
+
+fviz_pca_ind(res.pca, geom='point', alpha=0.5)
+fviz_pca_var(res.pca,
+             col.var = "contrib", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+             )
+
+fviz_pca_biplot(res.pca, repel = TRUE,
+                col.var = "#2E9FDF", # Variables color
+                col.ind = "#696969",  # Individuals color
+                geom='point'
+                )
+
+```
+
+```{r}
+res.pca <- prcomp(aws[DATE=='2022-06-20',.(dem, imp, tcc, build.fp, TX12am, TN12am)], scale = TRUE)
+fviz_eig(res.pca)
+
+fviz_pca_ind(res.pca, geom='point', alpha=0.5)
+fviz_pca_var(res.pca,
+             col.var = "contrib", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+             )
+```
+
+Kmeans on prediction grid
+
+```{r}
+library(terra)
+library(data.table)
+grid.spat <- vect('../input/prediction_grid_points_urb_rur_spatialcov.shp')
+grid.spat$lon <- geom(grid.spat)[,'x']
+grid.spat$lat <- geom(grid.spat)[,'y']
+grid.spat <- setDT(as.data.frame(grid.spat))
+dim(grid.spat)
+```
+
+Crops and water bodies are set to tcc==0 and imp==0
+
+Shouldn't we create another variable such as 'degree of vegetalization' instead of tcc? Or height of vegetation?
+
+```{r}
+
+dt.plot <- grid.spat[,.(imp=as.numeric(imp), tcc=as.numeric(tcc), dem=as.numeric(dem), build.fp=as.numeric(build.fp), build.h=build.h, lon=as.numeric(lon), lat=as.numeric(lat)),]
+
+ggplot(dt.plot[imp==0 & tcc==0,,])+
+  geom_point(aes(x=lon, y=lat), size=0.01)+
+  coord_equal()
+```
+
+```{r}
+library(factoextra)
+set.seed(123)
+
+data.cluster <- dt.plot[, .(imp, build.fp/9, tcc, dem)]
+data.cluster <- scale(data.cluster)
+
+# nb clusters
+fviz_nbclust(data.cluster[1:20000,], kmeans, method = "silhouette")
+
+res.km <- kmeans(data.cluster, 5)
+fviz_cluster(res.km, data = data.cluster,
+             palette = c("#2E9FDF", "#00AFBB", "#E7B800", 'orange', 'red'), 
+             geom = "point",
+             ellipse.type = "convex", 
+             ggtheme = theme_bw(),
+             alpha=0.1
+             )
+
+dt.plot$cluster <- res.km$cluster
+ggplot(dt.plot)+
+  geom_point(aes(x=lon, y=lat, color=as.factor(cluster)), size=0.01)+
+  scale_color_manual(values=c("#2E9FDF", "yellow", "green", 'purple', 'red'))+
+  coord_equal()
+
+```

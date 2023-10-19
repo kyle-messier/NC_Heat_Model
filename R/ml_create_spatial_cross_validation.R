@@ -7,7 +7,7 @@ create_sp_fold <- function(obs_sf) {
                                            group = network,
                                            v = 6
   )
-  rnd_llo <- spatial_leave_location_out_cv(obs_p_sf,
+  rnd_llo <- spatial_leave_location_out_cv(obs_p_sf, 
                                            group = station,
                                            v = 10
   )

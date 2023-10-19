@@ -60,3 +60,7 @@ rsconnect/
 ._.DS_Store
 ._*
 ._.*
+<<<<<<< HEAD
+=======
+R/.*
+>>>>>>> 8cbd316 (fix compatibility of main local folder)

@@ -1,0 +1,137 @@
+source("../R/provide_ggplot_standard_style.R")
+library(rlang)
+
+#' Displays residual according to prediction
+#'
+#' @param pred A vector of prediction
+#' @param res A vector of residuals
+#' @param title A character for plot title
+#' @export
+plot_res <- function(pred, res, title) {
+  ggplot(data.frame(x = as.numeric(pred), y = as.numeric(res)), aes(x, y)) +
+    geom_point(col = "blue", alpha = .5) +
+    ylim(-10, 10) +
+    ylab("Residuals") +
+    xlab("Predicted values") +
+    ggtitle(title) +
+    coord_equal() +
+    geom_hline(yintercept = 0, col = "green")
+}
+
+#' Displays regression plot
+#'
+#' @param pred A vector of prediction
+#' @param res A vector of residuals
+#' @param title A character for plot title
+#' @export
+plot_reg <- function(obs, pred, title) {
+  ggplot(data.frame(x = as.numeric(obs), y = as.numeric(pred)), aes(x, y)) +
+    geom_point(col = "blue", alpha = .5) +
+    geom_abline(slope = 1, intercept = 0, color = "red") +
+    ylab("Predicted") +
+    xlab("Observed") +
+    ggtitle(title) +
+    coord_equal() 
+}
+
+
+compute_rmse_cv <- function(cv_fit, predicted) {
+  cv_fit %>%
+  unnest(.preds) %>%
+  group_by(id, type) %>%
+  rmse({{predicted}}, .pred)
+}
+
+map_rmse_cv <- function(cv_fit, cv_rmse) {
+  p <- cv_fit %>%
+    unnest(.preds) %>%
+    left_join(cv_rmse, by = c("id", "type")) %>%
+    ggplot(aes(color = .estimate)) +
+    geom_sf(aes(geometry = geometry), alpha = 1) +
+    labs(color = "RMSE") +
+    scale_color_whitebox_c(
+      palette = "muted",
+      labels = scales::label_number(suffix = "ºC"),
+      n.breaks = 8,
+      guide = guide_legend(reverse = TRUE)
+    ) +
+    facet_wrap(vars(type)) +
+    my_theme_paper() +
+    theme(
+      axis.text = element_blank()
+    )
+  return(p)
+}
+
+map_res_cv <- function(cv_fit, predicted) {
+  p <- cv_fit %>%
+    unnest(.preds) %>%
+    ggplot(aes(color = {{predicted}} - .pred)) +
+    geom_sf(aes(geometry = geometry), alpha = 1) +
+    labs(color = "Residuals") +
+    scale_color_whitebox_c(
+      palette = "muted",
+      labels = scales::label_number(suffix = "ºC"),
+      n.breaks = 8,
+      guide = guide_legend(reverse = TRUE)
+    ) +
+    facet_wrap(vars(type)) +
+    my_theme_paper() +
+    theme(
+      axis.text = element_blank()
+    )
+  return(p)
+}
+
+
+plot_reg_cv <- function(cv_fit, predicted){
+  range <- cv_fit %>%
+    unnest(.preds) %>% data.table() %>% 
+    summarise(min=floor(min({{predicted}}, .pred)), 
+              max=ceiling(max({{predicted}}, .pred)))
+  
+  p <- cv_fit %>%
+    unnest(.preds) %>%
+    ggplot() +
+    geom_point(aes(x = {{predicted}}, y = .pred), alpha = 1) +
+    geom_abline(slope = 1, intercept = 0, color = "red") +
+    labs(x = "Observed", y = "Predicted") +
+    scale_x_continuous(limits=c(range$min, range$max),
+                       breaks = seq(range$min, range$max, by = 5), 
+                       minor_breaks = seq(range$min, range$max, by = 1)) +
+    scale_y_continuous(limits=c(range$min, range$max),
+                       breaks = seq(range$min, range$max, by = 5),
+                       minor_breaks = seq(range$min, range$max, by = 1)) +
+    coord_equal() +
+    facet_wrap(vars(type)) +
+    my_theme_paper()
+  return(p)
+}
+
+
+plot_res_cv <- function(cv_fit, predicted){
+  range <- cv_fit %>%
+    unnest(.preds) %>% data.table() %>% 
+    summarise(min=floor(min({{predicted}}, .pred)), 
+              max=ceiling(max({{predicted}}, .pred)))
+  
+  p <- cv_fit %>%
+    unnest(.preds) %>%
+    ggplot() +
+    geom_point(aes(x = .pred, y = {{predicted}} - .pred), alpha = 1) +
+    geom_abline(slope = 0, intercept = 0, color = "red") +
+    labs(x = "Predicted values", y = "Residuals") +
+    scale_x_continuous(limits=c(range$min, range$max),
+                       breaks = seq(range$min, range$max, by = 5), 
+                       minor_breaks = seq(range$min, range$max, by = 1)) +
+    scale_y_continuous(limits=c(-10, 10),
+                       breaks = seq(-10, 10, by = 5),
+                       minor_breaks = seq(-10, 10, by = 1)) +
+    coord_equal() +
+    facet_wrap(vars(type)) +
+    my_theme_paper()
+  return(p)
+}
+
+
+

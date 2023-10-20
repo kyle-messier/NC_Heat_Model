@@ -42,10 +42,13 @@ library(yardstick)
 My own functions to manipulate data:
 
 ```{r}
-source("functions_manipulate_spacetime_data.R")
-source("functions_open_my_spacetime_data.R")
-source("functions_machine_learning.R")
-source("functions_spatial_cross_validation.R")
+source("../R/manipulate_spacetime_data.R")
+source("../R/open_data_heatmodel.R")
+source("../R/ml_check_input_data.R")
+source("../R/ml_create_spatial_train_test_sets.R")
+source("../R/ml_create_spatial_cross_validation.R")
+source("../R/ml_define_models.R")
+source("../R/ml_compute_plot_scores_outputs.R")
 ```
 
 #### Open data on a specific period
@@ -178,8 +181,10 @@ df <- rbind(df_train, df_test)
 
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
   geom_tile() +
-  scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
   labs(title = "Test on random observations") +
+  scale_fill_manual(values = c(train = "lightblue", 
+                               test = "tomato4")) +
+  my_theme_paper() +
   theme(
     axis.ticks.y = element_blank(),
     axis.text.y = element_blank()
@@ -194,8 +199,9 @@ df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
   geom_tile() +
-  scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
   labs(title = "Test on random monitors") +
+  scale_fill_manual(values = c(train = "lightblue", 
+                               test = "tomato4")) +
   theme(
     axis.ticks.y = element_blank(),
     axis.text.y = element_blank()
@@ -210,8 +216,9 @@ df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
   geom_tile() +
-  scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
   labs(title = "Test on last day") +
+  scale_fill_manual(values = c(train = "lightblue", 
+                               test = "tomato4")) +
   theme(
     axis.ticks.y = element_blank(),
     axis.text.y = element_blank()
@@ -324,8 +331,10 @@ ggplot(df, aes(x = lon, y = lat, color = set)) +
 
 ```{r}
 obs_p_sf <- create_sf(obs_p, "epsg:5070")
-resamples <- create_sp_fold(obs_p_sf)
+sp_samples <- create_sp_fold(obs_p_sf)
 ```
+
+Plots 
 
 ```{r}
 cluster_llo <- spatial_clustering_cv(obs_p_sf, v = 10)
@@ -344,53 +353,9 @@ autoplot(net_llo)
 autoplot(rnd_llo)
 ```
 
-Linear model function
+#### Fit cross validation 
 
-```{r}
-compute_preds_lm <- function(splits) {
-  mod <- lm(formula_q, data = analysis(splits))
-  holdout <- assessment(splits)
-  tibble::tibble(
-    geometry = holdout$geometry,
-    tmin = holdout$tmin,
-    .pred = predict(mod, holdout)
-  )
-}
-```
-
-Cross validation and scores
-
-```{r}
-# -- mutate: create .preds col in cv_res tibble
-# -- each split of resamples has its own .preds with 
-# -- 3 columns: geometry, tmin and .pred 
-cv_res <- resamples %>%
-  mutate(.preds = map(splits, compute_preds_lm))
-
-cv_rmse <- cv_res %>%
-  unnest(.preds) %>%
-  group_by(id, type) %>%
-  rmse(tmin, .pred)
-
-cv_rmse
-```
-
-Plot RMSE per fold
-
-```{r}
-map_rmse_cv(cv_res)
-```
-
-
-```{r}
-map_res_cv(cv_res)
-```
-```{r}
-plot_reg_cv(cv_res)
-```
-
-
-#### Formula definition
+Formula definition
 
 ```{r}
 (formula <- as.formula(paste(predicted, " ~ ", 
@@ -399,6 +364,27 @@ plot_reg_cv(cv_res)
                              paste(predictors_q,
                                    collapse= "+"))))
 ```
+
+```{r}
+cv_fit <- compute_preds_lm_cv(sp_samples)
+cv_rmse <- compute_rmse_cv(cv_fit, predicted=tmin)
+cv_rmse
+```
+
+Plot RMSE per fold
+
+```{r}
+map_rmse_cv(cv_fit, cv_rmse)
+```
+
+
+```{r}
+map_res_cv(cv_fit, tmin)
+```
+```{r}
+plot_reg_cv(cv_fit, tmin)
+```
+
 
 ## Linear regression
 

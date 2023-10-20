@@ -27,13 +27,6 @@ create_sp_fold <- function(obs_sf) {
                                            v = 10
   )
   
-  # add leave counties out?
-  
-  autoplot(cluster_llo)
-  autoplot(block_llo)
-  autoplot(net_llo)
-  autoplot(rnd_llo)
-  
   cluster_llo$type <- "cluster"
   block_llo$type <- "block"
   net_llo$type <- "network"

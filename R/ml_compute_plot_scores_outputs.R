@@ -1,5 +1,6 @@
 source("../R/provide_ggplot_standard_style.R")
 library(rlang)
+library(ggplot2)
 
 #' Displays residual according to prediction
 #'
@@ -20,8 +21,8 @@ plot_res <- function(pred, res, title) {
 
 #' Displays regression plot
 #'
+#' @param obs A vector of observed target
 #' @param pred A vector of prediction
-#' @param res A vector of residuals
 #' @param title A character for plot title
 #' @export
 plot_reg <- function(obs, pred, title) {
@@ -35,6 +36,15 @@ plot_reg <- function(obs, pred, title) {
 }
 
 
+#' Compute RMSE on cross validation splits
+#'
+#' @param cv_fit A tibble with 4 columns: splits, id, type and .preds.
+#' .preds is also a tibble with: geometry, observed variable to predict 
+#' (eg: tmin) and .pred
+#' @param predicted The name of the target variable predicted by the model
+#' @return a tibble with 5 columns: it, type, .metric, .estimator and .estimate.
+#' Each row corresponds to the RMSE of 1 fold for on type of cross validation.
+#' @export
 compute_rmse_cv <- function(cv_fit, predicted) {
   cv_fit %>%
   unnest(.preds) %>%
@@ -42,6 +52,14 @@ compute_rmse_cv <- function(cv_fit, predicted) {
   rmse({{predicted}}, .pred)
 }
 
+#' map RMSE on cross validation splits
+#'
+#' @param cv_fit A tibble with 4 columns: splits, id, type and .preds.
+#' .preds is also a tibble with: geometry, observed variable to predict 
+#' (eg: tmin) and .pred
+#' @param cv_rmse
+#' @return ggplot map of RMSE by cross validation type
+#' @export
 map_rmse_cv <- function(cv_fit, cv_rmse) {
   p <- cv_fit %>%
     unnest(.preds) %>%
@@ -63,6 +81,14 @@ map_rmse_cv <- function(cv_fit, cv_rmse) {
   return(p)
 }
 
+#' map residuals per monitors
+#'
+#' @param cv_fit A tibble with 4 columns: splits, id, type and .preds.
+#' .preds is also a tibble with: geometry, observed variable to predict 
+#' (eg: tmin) and .pred
+#' @param predicted The name of the target variable predicted by the model
+#' @return ggplot map of residuals after cross validation type
+#' @export
 map_res_cv <- function(cv_fit, predicted) {
   p <- cv_fit %>%
     unnest(.preds) %>%
@@ -84,6 +110,14 @@ map_res_cv <- function(cv_fit, predicted) {
 }
 
 
+#' regression plot by type of cross validation
+#'
+#' @param cv_fit A tibble with 4 columns: splits, id, type and .preds.
+#' .preds is also a tibble with: geometry, observed variable to predict 
+#' (eg: tmin) and .pred
+#' @param predicted The name of the target variable predicted by the model
+#' @return regression plot
+#' @export
 plot_reg_cv <- function(cv_fit, predicted){
   range <- cv_fit %>%
     unnest(.preds) %>% data.table() %>% 
@@ -108,13 +142,19 @@ plot_reg_cv <- function(cv_fit, predicted){
   return(p)
 }
 
-
+#' residuals plot by type of cross validation
+#'
+#' @param cv_fit A tibble with 4 columns: splits, id, type and .preds.
+#' .preds is also a tibble with: geometry, observed variable to predict 
+#' (eg: tmin) and .pred
+#' @param predicted The name of the target variable predicted by the model
+#' @return residuals plot
+#' @export
 plot_res_cv <- function(cv_fit, predicted){
   range <- cv_fit %>%
     unnest(.preds) %>% data.table() %>% 
     summarise(min=floor(min({{predicted}}, .pred)), 
               max=ceiling(max({{predicted}}, .pred)))
-  
   p <- cv_fit %>%
     unnest(.preds) %>%
     ggplot() +

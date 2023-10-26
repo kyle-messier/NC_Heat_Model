@@ -77,7 +77,7 @@ pred_p <- project_dt(pred_p, crs_wgs84, crs_nad83)
 obs_p <- project_dt(obs_p, crs_wgs84, crs_nad83)
 ```
 
-Add county to datatables
+Add county to data.tables
 
 ```{r}
 pred_p <- add_nc_county(pred_p, crs_nad83)

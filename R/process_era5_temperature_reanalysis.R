@@ -8,6 +8,7 @@ library(xts)
 #' Convert nc file with ERA5 data to a datatable
 #'
 #' @param era5nc a ncdf4 object (default: data from 2022-05-31 to 2022-09-30) 
+#' with longitude, latitude, time and t2m covariates 
 #' @returns a datatable with columns geom, date, lon and lat in EPSG:4326
 #' @export
 convert_era5nc_to_dt <- function(

@@ -6,13 +6,13 @@ library(yardstick)
 #' (with kmeans spatial clusters, by rectangle blocks, by data source, 
 #' or randomly in space) 
 #'
-#' @param data A datatable of observations
-#' @param metadata a list of characters with obs info 
-#' (eg: county, date, lat, lon, ...)
-#' @param predictors a list of characters names of predictors
-#' @param predicted a character with the name of the predicted variable
+#' @param obs_sf An sf object of observations with columns network and station
 #' @return a tibble object with 3 columns: splits, id and type. 
-#' Tips: to recover dataframe from split, use analysis function
+#' Tips: to recover train and test dataframes from split j:
+#' as.data.frame(sp_samples$splits[[j]], data="analysis") for train
+#' as.data.frame(sp_samples$splits[[j]], data="assessment") for test
+#' Equivalently: analysis(sp_samples$splits[[j]]) or assessment(...)
+#' When doing head(sp_samples): [n_train/n_test]
 #' @export
 create_sp_fold <- function(obs_sf) {
   # -- uses k-means clustering

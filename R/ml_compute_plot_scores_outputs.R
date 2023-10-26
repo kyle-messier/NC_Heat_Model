@@ -39,7 +39,7 @@ plot_reg <- function(obs, pred, title) {
 #' Compute RMSE on cross validation splits
 #'
 #' @param cv_fit A tibble with 4 columns: splits, id, type and .preds.
-#' .preds is also a tibble with: geometry, observed variable to predict 
+#' .preds is also a tibble with 3 columns: geometry, {{variable to predict}}
 #' (eg: tmin) and .pred
 #' @param predicted The name of the target variable predicted by the model
 #' @return a tibble with 5 columns: it, type, .metric, .estimator and .estimate.
@@ -55,7 +55,7 @@ compute_rmse_cv <- function(cv_fit, predicted) {
 #' map RMSE on cross validation splits
 #'
 #' @param cv_fit A tibble with 4 columns: splits, id, type and .preds.
-#' .preds is also a tibble with: geometry, observed variable to predict 
+#' .preds is also a tibble with 3 columns: geometry, {{variable to predict}}
 #' (eg: tmin) and .pred
 #' @param cv_rmse
 #' @return ggplot map of RMSE by cross validation type
@@ -84,7 +84,7 @@ map_rmse_cv <- function(cv_fit, cv_rmse) {
 #' map residuals per monitors
 #'
 #' @param cv_fit A tibble with 4 columns: splits, id, type and .preds.
-#' .preds is also a tibble with: geometry, observed variable to predict 
+#' .preds is also a tibble with 3 columns: geometry, {{variable to predict}}
 #' (eg: tmin) and .pred
 #' @param predicted The name of the target variable predicted by the model
 #' @return ggplot map of residuals after cross validation type
@@ -113,7 +113,7 @@ map_res_cv <- function(cv_fit, predicted) {
 #' regression plot by type of cross validation
 #'
 #' @param cv_fit A tibble with 4 columns: splits, id, type and .preds.
-#' .preds is also a tibble with: geometry, observed variable to predict 
+#' .preds is also a tibble with 3 columns: geometry, {{variable to predict}}
 #' (eg: tmin) and .pred
 #' @param predicted The name of the target variable predicted by the model
 #' @return regression plot
@@ -145,7 +145,7 @@ plot_reg_cv <- function(cv_fit, predicted){
 #' residuals plot by type of cross validation
 #'
 #' @param cv_fit A tibble with 4 columns: splits, id, type and .preds.
-#' .preds is also a tibble with: geometry, observed variable to predict 
+#' .preds is also a tibble with 3 columns: geometry, {{variable to predict}}
 #' (eg: tmin) and .pred
 #' @param predicted The name of the target variable predicted by the model
 #' @return residuals plot

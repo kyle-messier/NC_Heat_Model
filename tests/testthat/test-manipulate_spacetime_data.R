@@ -1,173 +1,369 @@
-if (!require(testthat)) install.packages('testthat')
-library(testthat)
+library(gstat)
+library(terra)
+library(sf)
+library(sftime)
+library(tidyverse)
+library(ggplot2)
+library(ggspatial)
+library(gridExtra)
+library(tidyterra)
+library(rgeos)
+library(data.table) # -- for large flat datasets
+library(DT)
+library(styler)
+library(reshape2)
 
-source("../R/manipulate_spacetime_data.R")
+
+create_stdtobj <- function(stdt, crs_stdt) {
+  if (class(stdt)[1] != "data.table") {
+    stop("stdt is not a data.table.")
+  }
+  
+  if (!(all(c("lon", "lat", "time") %in% colnames(stdt)))) {
+    stop("one of lon, lat, time columns missing or mispelled.")
+  }
+  
+  if (class(crs_stdt) != "character") {
+    stop("crs_stdt is not a character.")
+  }
+  
+  stdtobj <- list("stdt" = stdt, "crs_stdt" = crs_stdt)
+  class(stdtobj) <- c("list", "stdtobj")
+  return(stdtobj)
+}
 
 
-test_that("Check convert_stdt_starray works", {
-  
-  # -- 1st example: stdt does not have correct columns
-  lon <- c(seq(1, 5, 1), seq(1, 5, 1))
-  lat <- c(rep(1, 5), rep(3, 5))
-  date <- rep(c("t1", "t2"), 5) 
-  v1 <- seq(1, 10, 1)
-  v2 <- seq(21, 30, 1)
-  stdt <- data.table(lon, lat, date, v1, v2)
-  expect_error(convert_stdt_starray(stdt), 
-               "stdt does not contain lon, lat and time columns")
-  
-  # -- 2nd example: stdt has duplicates point lon-lat-time
-  lon <- c(seq(1, 5, 1), seq(1, 5, 1), 1)
-  lat <- c(rep(1, 5), rep(3, 5), 1)
-  time <- c(rep(c("t1", "t2"), 5), "t1")
-  v1 <- c(seq(1, 10, 1), 1)
-  v2 <- c(seq(21, 30, 1), 21)
-  stdt <- data.table(lon, lat, time, v1, v2)
-  expect_error(convert_stdt_starray(stdt), 
-               "stdt contains duplicates in lon-lat-time points")
-  
-  # -- 3rd example: no covariate in the datatable
-  lon <- c(seq(1, 5, 1), seq(1, 5, 1))
-  lat <- c(rep(1, 5), rep(3, 5))
-  time <- rep(c("t1", "t2"), 5)
-  stdt <- data.table(lon, lat, time)
-  expect_error(convert_stdt_starray(stdt), 
-               "stdt does not contain any variables")
-  
-  # -- 4th example: everything works fine
-  lon <- c(seq(1, 5, 1), seq(1, 5, 1))
-  lat <- c(rep(1, 5), rep(3, 5))
-  time <- rep(c("t1", "t2"), 5)
-  v1 <- seq(1, 10, 1)
-  stdt <- data.table(lon, lat, time, v1)
-  expect_no_error(convert_stdt_starray(stdt))
-  expect_true(all(dim(convert_stdt_starray(stdt)) == c(5, 2, 2, 1)))
-  expect_equal(convert_stdt_starray(stdt)[1,1,1,], 1)
-  expect_true(is.na(convert_stdt_starray(stdt)[1,2,1,]))
-})
+is_stdtobj <- function(stdtobj) {
+  if (!(identical(class(stdtobj), c("list", "stdtobj")))){
+    return(FALSE)
+  }
+  else if (!(identical(names(stdtobj), c("stdt", "crs_stdt")))) {
+    return(FALSE)
+  } 
+  else if (!(identical(class(stdtobj$stdt)[1], "data.table"))) {
+    return(FALSE)
+  }
+  else if (!(all(c("lon", "lat", "time") %in% colnames(stdtobj$stdt)))) {
+    return(FALSE)
+  }
+  else if (!(identical(class(stdtobj$crs_stdt)[1], "character"))) {
+    return(FALSE)
+  }
+  else {
+    return(TRUE)
+  }
+}
 
-test_that("Check convert_starray_stdt works", {
-  # -- example: eveything works fine
-  lon <- c(seq(1, 5, 1), seq(1, 5, 1))
-  lat <- c(rep(1, 5), rep(3, 5))
-  time <- rep(c("t1", "t2"), 5)
-  v1 <- seq(1, 10, 1)
-  v2 <- seq(21, 30, 1)
-  stdt <- data.table(lon, lat, time, v1, v2)
-  starray <- convert_stdt_starray(stdt)
-  # -- dimensional expectations
-  expect_equal(Reduce(dim(starray)[1:3], f='*'),
-               nrow(convert_starray_stdt(starray)))
-})
 
-test_that("Check create_sf works", {
-  
-  # -- 1st example: datatable is not a data.table
-  crs <- "epsg:5070"
-  dt_eg <- data.frame("lon" = c(1520000, 1650000),
-                      "lat" = c(1580000, 1550000))
-  expect_error(create_sf(dt_eg, crs), "datatable is not a data.table")
-  
-  # -- 2nd example: datatable does not contain lon column
-  crs <- "epsg:5070"
-  dt_eg <- data.table("longitude" = c(1520000, 1650000),
-                      "lat" = c(1580000, 1550000))
-  expect_error(create_sf(dt_eg, crs), 
-               "datatable does not contain lon column")
-  
-  # -- 3rd example: crs is not a character
-  crs <- 5070
-  dt_eg <- data.table("lon" = c(1520000, 1650000),
-                      "lat" = c(1580000, 1550000))
-  expect_error(create_sf(dt_eg, crs), "crs is not a character")
-  
-  # -- 4th example: everything sounds good
-  crs <- "epsg:4326"
-  dt_eg <- data.table("lon" = c(-78.895, -77.370),
-                      "lat" = c(36.025, 35.599))
-  expect_equal(class(create_sf(dt_eg, crs)), 
-               c("sf", "data.table", "data.frame"))
+create_starrayobj <- function(starray, crs_starray) {
+  if (class(starray) != "array") {
+    stop("starray is not an array.")
+  }
+  if (!(identical(c("lon", "lat", "time", "variable"), names(dim(starray))))) {
+    stop("array dimensions are not lon, lat, time, variable.")
+  }
+  if (class(crs_starray) != "character") {
+    stop("crs_starray is not a character.")
+  }
+  starray <- list("starray" = starray, "crs_starray" = crs_starray)
+  class(starray) <- c("list", "starrayobj")
+  return(starray)
+}
 
-})
+is_starrayobj <- function(starrayobj) {
+  if (!(identical(class(starrayobj), c("list", "starrayobj")))){
+    return(FALSE)
+  }
+  else if (!(identical(names(starrayobj), c("starray", "crs_starray")))) {
+    return(FALSE)
+  } 
+  else if (!(identical(class(starrayobj$starray), "array"))) {
+    return(FALSE)
+  }
+  else if (!(identical(c("lon", "lat", "time", "variable"),
+                       names(dim(starrayobj$starray))))) {
+    return(FALSE)
+  }
+  else if (!(identical(class(starrayobj$crs_starray)[1], "character"))) {
+    return(FALSE)
+  }
+  else {
+    return(TRUE)
+  }
+}
 
-test_that("Check create_sftime works", {
+#' Create a 4d spatiotemporal array from a spatiotemporal datatable
+#'
+#' @param stdtobj A stdt object: data.table object with columns 
+#' "lat", "lon", "time" + a set of covariates and associated crs 
+#' @returns a starray object: 4D array with 4 dimensions corresponding to
+#' lat, lon, time, variable and associated crs
+#' To plot the timeserie: plot(starray[i,j,,l])
+#' To map one variable at one time: image(starray[,,k,l])
+convert_stdt_starray <- function(stdtobj) {
   
-  # -- 1st example: datatable is not a data.table
-  crs <- "epsg:5070"
-  dt_eg <- data.frame("lon" = c(1520000, 1650000),
-                      "lat" = c(1580000, 1550000))
-  expect_error(create_sftime(dt_eg, crs), "datatable is not a data.table")
+  if (!is_stdtobj(stdtobj)) {
+    stop("stdtobj is not a stdt object.")
+  }
   
-  # -- 2nd example: datatable does not contain lon column
-  crs <- "epsg:5070"
-  dt_eg <- data.table("longitude" = c(1520000, 1650000),
-                      "lat" = c(1580000, 1550000),
-                      "date" = c("2022-06-01", "2022-06-02"))
-  expect_error(create_sftime(dt_eg, crs), 
-               "datatable does not contain lon column")
+  stdt <- stdtobj$stdt
+  stdt_complete <- expand_grid(lon = unique(stdt$lon), 
+                               lat = unique(stdt$lat), 
+                               time = unique(stdt$time))
+  stdt_complete <- merge(stdt, stdt_complete,
+                         by = c("lon", "lat", "time"),
+                         all.y = T
+  )
   
-  # -- 3rd example: datatable does not contain date column
-  crs <- "epsg:5070"
-  dt_eg <- data.table("lon" = c(1520000, 1650000),
-                      "lat" = c(1580000, 1550000))
-  expect_error(create_sftime(dt_eg, crs), 
-               "datatable does not contain date column")
+  # reshape stdt from wide to long format
+  stdt_long <- maditr::melt(stdt_complete, id.vars = c("lon", "lat", "time"))
+  # sort columns in this order: variable -> time -> lat -> lon
+  setorderv(stdt_long, c("variable", "time", "lat", "lon"))
   
-  # -- 4th example: crs is not a character
-  crs <- 5070
-  dt_eg <- data.table("lon" = c(1520000, 1650000),
-                      "lat" = c(1580000, 1550000),
-                      "date" = c("2022-06-01", "2022-06-02"))
-  expect_error(create_sftime(dt_eg, crs), "crs is not a character")
-  
-  # -- 5th example: everything sounds good
-  crs <- "epsg:4326"
-  dt_eg <- data.table("lon" = c(-78.895, -77.370),
-                      "lat" = c(36.025, 35.599), 
-                      "date" = c("2022-06-01", "2022-06-02"))
-  expect_equal(class(create_sftime(dt_eg, crs)), 
-               c("sftime", "sf", "data.table", "data.frame"))
-  
-})
+  dimnames <- lapply(stdt_long[, 1:4], unique)
+  starray <- array(stdt_long$value,
+                   dim = lengths(dimnames),
+                   dimnames = dimnames
+  )
+  starrayobj <- create_starrayobj(starray, stdtobj$crs_stdt)
+  return(starrayobj)
+}
 
-test_that("Check project_dt works", {
-  
-  # -- 1st example: crs are not characters
-  crs_ori <- 4326
-  crs_dest <- 5070
-  dt_eg <- data.table("lon" = c(-84, -83),
-                      "lat" = c(35, 36))
-  expect_error(project_dt(dt_eg, crs_ori, crs_dest), 
-               "crs are not characters")
-  
-  # -- 2nd example: datatable does not contain lon column
-  crs_ori <- "epsg:4326"
-  crs_dest <- "epsg:5070"
-  dt_eg <- data.table("longitude" = c(-84, -83),
-                      "lat" = c(35, 36))
-  expect_error(project_dt(dt_eg, crs_ori, crs_dest), 
-               "datatable does not contain lon column")
-  
-  # -- 3rd example: datatable is not a data.table
-  dt_eg <- data.frame("lon" = c(-84, -83),
-                      "lat" = c(35, 36))
-  expect_error(project_dt(dt_eg, crs_ori, crs_dest), 
-               "datatable is not a data.table")
-  
-  # -- 4th example: everything sounds good
-  dt_eg <- data.table("lon" = c(-84, -83),
-                      "lat" = c(35, 36))
-  expect_equal(class(project_dt(dt_eg, crs_ori, crs_dest)), 
-               c("data.table", "data.frame"))
-  expect_contains(colnames(project_dt(dt_eg, crs_ori, crs_dest)), 
-                  list("lon", "lat", "lon_ori", "lat_ori"))
-  expect_false(any(is.na(project_dt(dt_eg, crs_ori, crs_dest)$lon)))
-  expect_false(any(is.na(project_dt(dt_eg, crs_ori, crs_dest)$lat)))
-  output <- project_dt(dt_eg, crs_ori, crs_dest)
-  expect_false(any(output$lon_ori - output$lon == 0))
-  expect_false(any(output$lat_ori - output$lat == 0))
-  
-})
+convert_starray_stdt <- function(starrayobj) {
+  if (!is_starrayobj(starrayobj)) {
+    stop("starrayobj is not a starray object.")
+  }
+  starray <- starrayobj$starray
+  long_starray <- reshape2::melt(starray)
+  wide_starray <- reshape(long_starray,
+                          idvar = c("lon", "lat", "time"),
+                          timevar = "variable",
+                          direction = "wide"
+  )
+  colnames(wide_starray) <- str_replace(
+    colnames(wide_starray),
+    "value.",
+    ""
+  )
+  stdt <- as.data.table(wide_starray)
+  # stdt <- na.omit(stdt)
+  stdtobj <- create_stdtobj(stdt, starrayobj$crs_starray)
+  return(stdtobj)
+}
 
+
+convert_stobj_to_stdt <- function(stobj) {
+  
+  format <- class(stobj)[[1]]
+  
+  if (format == "sf" || format == "sftime") {
+    if (any(!(c("geometry", "time") %in% colnames(stobj)))) {
+      stop("stobj does not contain geometry and time columns")
+    }
+    crs_dt <- as.character(sf::st_crs(stobj))[1]
+    stobj$lon <- sf::st_coordinates(stobj)[, 1]
+    stobj$lat <- sf::st_coordinates(stobj)[, 2]
+    stdt <- data.table::as.data.table(stobj)
+    stdt <- stdt[, geometry := NULL]
+  } else if (format == "SpatVector") {
+    if (!("time") %in% names(stobj)) {
+      stop("stobj does not contain time column")
+    }
+    crs_dt <- crs(stobj)
+    stdf <- as.data.frame(stobj, geom = "XY")
+    names(stdf)[names(stdf) == "x"] <- "lon"
+    names(stdf)[names(stdf) == "y"] <- "lat"
+    stdt <- data.table::as.data.table(stdf)
+  } else if (format == "SpatRasterDataset") {
+    crs_dt <- crs(stobj)
+    stdf <- as.data.frame(stobj[1], xy = T)
+    colnames(stdf)[1] <- "lon"
+    colnames(stdf)[2] <- "lat"
+    # -- tranform from wide to long format
+    stdf <- stdf %>% pivot_longer(
+      cols = 3:ncol(stdf),
+      names_to = "time",
+      values_to = names(stobj)[1]
+    )
+    
+    for (var in names(stobj)[2:length(names(stobj))]) {
+      # test that the ts is identical to the ts of the 1st variable
+      if (!(identical(names(stobj[var]), names(stobj[1])))) {
+        stop("Error in SpatRastDataset: timeserie is different for at least 
+             2 variables - or not ordered for one of these.")
+      }
+      df_var <- as.data.frame(stobj[var], xy = T)
+      # -- tranform from wide to long format
+      df_var <- df_var %>% pivot_longer(
+        cols = 3:ncol(df_var),
+        names_to = "time",
+        values_to = var
+      )
+      stdf[, var] <- df_var[, var]
+    }
+    stdt <- data.table::as.data.table(stdf)
+  } else {
+    stop("stobj class not accepted")
+  }
+  
+  stdtobj <- create_stdtobj(stdt, crs_dt)
+  return(stdtobj)
+}
+
+convert_stdt_spatvect <- function(stdtobj) {
+  if (!is_stdtobj(stdtobj)) {
+    stop("stdtobj is not an stdt object")
+  }
+  vect_obj <- vect(stdtobj$stdt, 
+                   geom = c("lon", "lat"), 
+                   crs = stdtobj$crs_stdt, 
+                   keepgeom = FALSE)
+  return(vect_obj)
+}
+
+convert_stdt_sftime <- function(stdtobj) {
+  if (!is_stdtobj(stdtobj)) {
+    stop("stdtobj is not an stdt object")
+  }
+  stdt <- stdtobj$stdt
+  stdt$time <- as.Date(stdt$time)
+  sftime_obj <- sftime::st_as_sftime(stdt,
+                                     coords = c("lon", "lat"),
+                                     time_column_name = "time",
+                                     crs = stdtobj$crs_stdt
+  )
+  return(sftime_obj)
+}
+
+
+convert_stdt_spatrastdataset <- function(stdtobj) {
+  if (!is_stdtobj(stdtobj)) {
+    stop("stdtobj is not an stdt object")
+  }
+  df <- as.data.frame(stdtobj$stdt)
+  col <- colnames(df)
+  variables <- col[! (col %in% c("lon", "lat", "time"))]
+  rast_list <- list()
+  for (var in variables) {
+    newdf <- reshape(df[, c("lon", "lat", "time", var)], 
+                     idvar = c("lon", "lat"), 
+                     timevar = "time", 
+                     direction = "wide")
+    colnames(newdf) <- str_replace(
+      colnames(newdf),
+      paste0(var, "."),
+      ""
+    )
+    var_rast <- as_spatraster(newdf, xycols=c(1,2))
+    rast_list[[var]] <- var_rast
+  }
+  rastdt_obj <- terra::sds(rast_list)
+  return(rastdt_obj)
+}
+
+#' Create a sf object from a data.table
+#'
+#' @param datatable A data.table object with columns "lat", "lon"
+#' @param crs A character containing the original crs
+#' @returns an sf object
+create_sf <- function(datatable, crs) {
+  if (!("data.table" %in% class(datatable))) {
+    stop("datatable is not a data.table")
+  }
+  if (class(crs) != "character") {
+    stop("crs is not a character")
+  }
+  if (!("lon" %in% colnames(datatable))) {
+    stop("datatable does not contain lon column")
+  }
+  if (!("lat" %in% colnames(datatable))) {
+    stop("datatable does not contain lat column")
+  }
+  
+  data_sf <- st_as_sf(datatable,
+                      coords = c("lon", "lat"),
+                      remove = F,
+                      crs = crs
+  )
+  return(data_sf)
+}
+
+
+#' Create a sftime object from a data.table
+#'
+#' @param datatable A data.table object with columns "lat", "lon", "date"
+#' @param crs A character containing the original crs
+#' @returns an sftime object
+create_sftime <- function(datatable, crs) {
+  if (!("data.table" %in% class(datatable))) {
+    stop("datatable is not a data.table")
+  }
+  if (class(crs) != "character") {
+    stop("crs is not a character")
+  }
+  if (!("lon" %in% colnames(datatable))) {
+    stop("datatable does not contain lon column")
+  }
+  if (!("lat" %in% colnames(datatable))) {
+    stop("datatable does not contain lat column")
+  }
+  if (!("date" %in% colnames(datatable))) {
+    stop("datatable does not contain date column")
+  }
+  
+  datatable$date <- as.Date(datatable$date)
+  data_sft <- st_as_sftime(datatable,
+                           coords = c("lon", "lat"),
+                           remove = F,
+                           crs = crs,
+                           time_column_name = "date"
+  )
+  return(data_sft = data_sft)
+}
+
+
+#' Project coordinates in a datatable from crs_ori to crs_dest
+#'
+#' @param datatable A data.table object with columns "lat", "lon"
+#' @param crs_ori A character containing the original crs of spatial data
+#' @param crs_dest A character containing the destination crs of spatial data
+#' @returns same datatable object with "lon", "lat",
+#' "lon_ori", "lat_ori" columns
+project_dt <- function(datatable, crs_ori, crs_dest) {
+  if (class(crs_ori) != "character" || class(crs_dest) != "character") {
+    stop("crs are not characters")
+  }
+  if (!("data.table" %in% class(datatable))) {
+    stop("datatable is not a data.table")
+  }
+  if (!("lat" %in% colnames(datatable))) {
+    stop("datatable does not contain lat column")
+  }
+  if (!("lon" %in% colnames(datatable))) {
+    stop("datatable does not contain lon column")
+  }
+  
+  loc <- unique(datatable[, c("lon", "lat")])
+  loc_sf <- create_sf(loc, crs_ori)
+  loc_sf <- st_transform(loc_sf, crs_dest)
+  colnames(loc_sf)[colnames(loc_sf) == "lon"] <- "lon_ori"
+  colnames(loc_sf)[colnames(loc_sf) == "lat"] <- "lat_ori"
+  loc_sf <- loc_sf %>%
+    mutate(
+      lon = unlist(map(loc_sf$geometry, 1)),
+      lat = unlist(map(loc_sf$geometry, 2))
+    )
+  loc_proj <- as.data.table(loc_sf)
+  loc_proj <- loc_proj[, geometry := NULL]
+  # renaming is only valid within the function
+  colnames(datatable)[colnames(datatable) == "lon"] <- "lon_ori"
+  colnames(datatable)[colnames(datatable) == "lat"] <- "lat_ori"
+  datatable_proj <- merge(
+    datatable,
+    loc_proj,
+    by = c("lon_ori", "lat_ori")
+  )
+  return(datatable_proj)
+}
 
 

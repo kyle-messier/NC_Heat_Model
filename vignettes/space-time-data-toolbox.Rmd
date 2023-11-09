@@ -1,0 +1,187 @@
+---
+title: "Space-time data format: toolbox"
+output: html_document
+date: "2023-11-06"
+---
+
+```{r message=FALSE}
+source("../R/manipulate_spacetime_data.R")
+```
+
+# Existing space-time objects
+
+A data.frame containing lon, lat and time columns can be considered as a space-time object. But there is not metadata about the coordinate system and the time reference.
+
+```{r}
+lon <- seq(-112, -101, length.out = 5) # create lon sequence
+lat <- seq(33.5, 40.9, length.out = 5) # create lat sequence
+df <- expand.grid("lon" = lon, "lat" = lat) # expand to regular grid
+df <- rbind(df, df)
+df$time <- c(rep("2023-11-02", 25), rep("2023-11-03", 25))
+df$var1 <- 1:50
+df$var2 <- 51:100
+head(df)
+```
+
+![](IMG-1372.PNG){width="2160"}
+
+It is supposed to ensure that the extent and resolution is the same for each SpatRaster of the dataset (contrary to SpatRasterCollection). The grid in rasters is regular.
+
+```{r}
+var1 <- rast(
+  extent = c(-112, -101, 33.5, 40.9),
+  ncol = 5,
+  nrow = 5,
+  crs = "epsg:4326"
+)
+values(var1) <- seq(-5, 19)
+add(var1) <- c(var1**2, var1**3)
+names(var1) <- c("2023-11-01", "2023-11-02", "2023-11-03")
+var2 <- rast(
+  extent = c(-112, -101, 33.5, 40.9),
+  ncol = 5,
+  nrow = 5,
+  crs = "epsg:4326"
+)
+values(var2) <- seq(-15, 9)
+add(var2) <- c(var2**2, var2**3)
+names(var2) <- c("2023-11-01", "2023-11-02", "2023-11-03")
+rastdt_obj <- terra::sds(var1, var2)
+names(rastdt_obj) <- c("var1", "var2")
+head(rastdt_obj)
+plot(rastdt_obj[1], main = "var1 (1st SpatRaster)")
+plot(rastdt_obj[2], main = "var2 (2nd SpatRaster)")
+```
+
+### ![](IMG-1370.PNG)
+
+SpatVector is designed for irregular spatial data (points, lines, polygons). We can use it with points and add time dimension as a simple layer (column).
+
+```{r}
+vect_obj <- vect(df, geom = c("lon", "lat"), 
+              crs = "EPSG:4326", 
+              keepgeom = FALSE)
+head(vect_obj)
+plot(vect_obj[vect_obj$time=="2023-11-02"], 2, main = "var1 - 2023-11-02")
+plot(vect_obj[vect_obj$time=="2023-11-02"], 3, main = "var2 - 2023-11-02")
+```
+
+![](IMG-1369.PNG)
+
+![]()
+
+sf object limitation is about the time class definition. We do not necessarily know the time reference and unit. sftime object is a wide format with lon and lat considered as a geometry (with a crs) and time column is in standard time format.
+
+### sf
+
+```{r}
+df$time <- c(rep("2023-11-02", 25), rep("2023-11-03", 25))
+sf_obj <- sf::st_as_sf(df, coords = c("lon", "lat"), crs = "EPSG:4326")
+```
+
+### sftime
+
+```{r}
+df$time <- as.Date(df$time)
+sftime_obj <- sftime::st_as_sftime(df,
+    coords = c("lon", "lat"),
+    time_column_name = "time",
+    crs = "EPSG:4326"
+  )
+head(sftime_obj)
+plot(sftime_obj)
+```
+
+# New space-time objects
+
+Why these new formats? Just for fun! And also because data.table (\~= data.frame but more scalable) and arrays (\~= matrices in higher dimensions) are very often used with classical statistical tools, such as machine learning algorithms. Tables and arrays are complementary depending on what we want to do with the data.
+
+### ![](IMG-1365.PNG)
+
+Data.table is interesting to launch request on data and is the standard data type accepted by machine learning functions.
+
+```{r}
+library(data.table)
+df$time <- as.character(df$time)
+stdt_obj <- create_stdtobj(as.data.table(df), "EPSG:4326")
+class(stdt_obj)
+stdt_obj$crs_stdt
+head(stdt_obj$stdt)
+```
+
+This is a function to ckeck that the object is a stdt
+
+```{r}
+is_stdtobj(stdt_obj)
+```
+
+### ![]()![](IMG-1371.PNG)
+
+4-dimensional array (1st dim = lon, 2nd dim = lat, 3rd dim = time, 4th dim = variable). This data type is very useful to quickly access and plot maps or timeseries.
+
+```{r}
+df_long <- maditr::melt(df, id.vars = c("lon", "lat", "time"))
+setorderv(df_long, c("variable", "time", "lat", "lon"))
+dimnames <- lapply(df_long[, 1:4], unique)
+array_4d <- array(df_long$value,
+  dim = lengths(dimnames),
+  dimnames = dimnames
+)
+```
+
+```{r}
+starray_obj <- create_starrayobj(array_4d, "EPSG:4326")
+class(starray_obj)
+starray_obj$crs_starray
+starray_obj$starray
+```
+
+This is a function to ckeck that the object is a starray
+
+```{r}
+is_starrayobj(starray_obj)
+```
+
+Plotting a timeserie is very straightforward
+
+```{r}
+plot(starray_obj$starray[1,1,,1], main = "This is a timeserie")
+```
+
+## Conversions
+
+### From stdtobj to starrayobj
+
+```{r}
+new_starray_obj <- convert_stdt_starray(stdt_obj)
+is_starrayobj(new_starray_obj)
+```
+
+### From starrayobj to stdtobj
+
+```{r}
+new_stdt_obj <- convert_starray_stdt(starray_obj)
+is_stdtobj(new_stdt_obj)
+```
+
+### From stdtobj to any existing ST-format
+
+```{r}
+test1 <- convert_stdt_sftime(stdt_obj)
+test2 <- convert_stdt_spatvect(stdt_obj)
+test3 <- convert_stdt_spatrastdataset(stdt_obj)
+head(test1)
+test2
+test3
+```
+
+### From any existing ST-format to stdtobj
+
+```{r}
+test4 <- convert_stobj_to_stdt(vect_obj)
+test5 <- convert_stobj_to_stdt(rastdt_obj)
+test6 <- convert_stobj_to_stdt(sftime_obj)
+head(test4$stdt)
+head(test5$stdt)
+head(test6$stdt)
+```

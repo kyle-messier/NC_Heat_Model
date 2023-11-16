@@ -1,0 +1,62 @@
+---
+title: "Add covariates: example on RTP area"
+output: html_document
+date: "2023-11-09"
+---
+
+Load tools
+
+```{r, message=F}
+if (!require(pacman)){
+    install.packages('pacman')
+    library(pacman)
+}
+p_load(terra, tidyterra, exactextractr, sf, dplyr, fastDummies, 
+       viridis, ggplot2)
+source("../R/add_covariates.R")
+```
+
+
+```{r}
+nc <- vect(paste0("../input/NC_county_boundary/",
+                  "North_Carolina_State_and_County_Boundary_Polygons.shp"))
+same.crs(crs(nc), "EPSG:6543")
+```
+
+## Create prediction grid based on imperviousness aggregation
+
+```{r}
+imp <- rast("../input/NC_imperviousness_2019.tif")
+nc_proj <- terra::project(nc, crs(imp))
+imp <- terra::mask(imp, nc_proj)
+ # aggregation at 300m
+pred_rast <- aggregate(imp, fact = 10, fun = "mean")
+names(pred_rast) <- "imp"
+plot(pred_rast)
+```
+## Zoom om RTP area
+
+```{r}
+lat <- c(35.6, 36.11, 36.11, 35.6)
+lon <- c(-79.19, -79.19, -78.39, -78.39)
+ext_rtp <- vect(cbind(lon, lat), type = "polygons", crs="EPSG:4326")
+ext_rtp <- terra::project(ext_rtp, crs(pred_rast))
+pred_rast_rtp <- terra::crop(pred_rast, ext_rtp)
+plot(pred_rast_rtp)
+pred_vect_rtp <- terra::as.points(pred_rast_rtp)
+```
+
+
+## Add spatial covariates
+
+Tree canopy height
+
+```{r}
+pred_vect_rtp <- add_canopy_h(sp_vect = pred_vect_rtp)
+plot(x = pred_vect_rtp, y = "canopy_h", cex = 0.2)
+```
+
+```{r}
+
+```
+

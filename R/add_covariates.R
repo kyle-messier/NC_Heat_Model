@@ -72,33 +72,69 @@ add_dem <- function(dem_path = "../input/NC-DEM.tif",
   return(sp_vect_cov)
 }
 
-#' Add building footprint covariate to a terra::SpatVector
+#' Add forest height
 #'
 #' @param build_fp_path a character with the path to building footprint raster file
 #' (default: "../input/NC_building-footprints/NorthCarolina_sum.tif")
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "build_fp"
 #' @export
-add_build_fp <- function(
-    build_fp_path = "../input/NC_building-footprints/NorthCarolina_sum.tif",
+add_canopy_h <- function(
+    canopy_h_path = "../input/NC_forest_height_2019_crs-wgs84.tif",
     sp_vect) {
+  if (!file.exists(canopy_h_path)) {
+    stop("canopy_h_path does not exist")
+  }
+  canopy_h <- terra::rast(canopy_h_path)
+  canopy_h[canopy_h > 60] <- 0
+  sp_vect_cov <- terra::project(sp_vect, crs(canopy_h)) %>%
+    terra::extract(
+      x = canopy_h, y = .,
+      fun = function(x) mean(x, na.rm = T),
+      method = "bilinear", bind = T
+    ) %>%
+    rename(canopy_h = names(canopy_h)) %>%
+    terra::project(., crs(sp_vect))
+  if (any(is.na(sp_vect_cov$canopy_h))) {
+    stop("NAs found in canopy_h column")
+  }
+  return(sp_vect_cov)
+}
+
+
+#' Add building footprint covariate to a terra::SpatVector
+#'
+#' @param build_fp_path a character with the path to building footprint
+#' raster file
+#' (default: "../input/NC_building-footprints/NorthCarolina_sum.tif")
+#' @param sp_vect a terra::SpatVector
+#' @returns the same terra::SpatVector with the column "build_fp"
+#' @export
+add_build_fp <- function(build_fp_path = "../input/NC_building-footprints/NorthCarolina_sum.tif",
+                         sp_vect) {
+  
   if (!file.exists(build_fp_path)) {
     stop("build_fp_path does not exist")
   }
   build_fp <- terra::rast(build_fp_path)
   sp_vect_cov <- terra::project(sp_vect, crs(build_fp)) %>%
     terra::extract(
-      x = build_fp, y = .,
-      fun = function(x) mean(x, na.rm = T),
-      method = "bilinear", bind = T
+      x = build_fp,
+      y = .,
+      fun = function(x)
+        mean(x, na.rm = T),
+      method = "bilinear",
+      bind = T
     ) %>%
     rename(build_fp = names(build_fp)) %>%
     terra::project(., crs(sp_vect))
   if (any(is.na(sp_vect_cov$build_fp))) {
+    
     stop("NAs found in build_fp column")
   }
   return(sp_vect_cov)
 }
+
 
 #' Add building height covariate to a terra::SpatVector
 #'
@@ -131,14 +167,50 @@ add_build_h <- function(
 }
 
 
+
+#' Add corresponding NC county to a datatable containing lat, lon
+#' 
+#' @param datatable A data.table object with columns "lat", "lon"
+#' @param crs A character containing the crs of spatial data
+#' @returns same datatable object with "county" columns
+add_nc_county <- function(datatable, crs) {
+  
+  if (class(crs) != "character") {stop("crs is not a character")}
+  if (!("data.table" %in% class(datatable))) {
+    stop("datatable is not a data.table")
+  }
+  if (!("lat" %in% colnames(datatable))) {
+    stop("datatable does not contain lat column")
+  }
+  if (!("lon" %in% colnames(datatable))) {
+    stop("datatable does not contain lon column")
+  }
+  nc_borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp")
+  if (!same.crs(nc_borders, crs)) {
+    nc_borders <- project(nc_borders, crs)
+  }
+  
+  loc <- unique(datatable[, c("lon", "lat")])
+  loc <- vect(loc, geom = c("lon", "lat"), crs = crs, keepgeom = TRUE)
+  loc$county <- terra::extract(nc_borders[, c("County")], loc)$County
+  datatable <- merge(datatable, 
+                     loc[, c("lon", "lat", "county")], 
+                     by = c("lon", "lat"))
+  
+  return(datatable)
+  
+}
+
+
 #' Add minimum temperature computed from ERA5 reanalysis to ???\
 #'
-#' @param sp_vect A terra::SpatVector
+#' @param data An stdtobj
 #' @returns ???
 #' @export
-add_era5TN_cov <- function(sp_vect) {
-  crs_ori <- crs(sp_vect)
-
+add_era5_tn <- function(data) {
+  stdt <- stdtobj$stdt
+  crs_data <- stdtobj$crs_stdt
+  
   # open minimum temperatures from era5 reanalysis
   era5_TNwmo <- rast(paste0(
     "../input/",

@@ -1,0 +1,205 @@
+---
+title: "land_cover_ratio"
+output: html_document
+date: "2023-11-09"
+---
+
+Load function
+
+```{r}
+if (!require(pacman)){
+    install.packages('pacman')
+    library(pacman)
+}
+p_load(terra, tidyterra, exactextractr, sf, dplyr, fastDummies, viridis, ggplot2)
+source("../R/create_prediction_grid.R")
+```
+
+Open NC shapefile
+
+```{r}
+nc <- vect(paste0("../input/NC_county_boundary/",
+                  "North_Carolina_State_and_County_Boundary_Polygons.shp"))
+same.crs(crs(nc), "EPSG:6543")
+plot(nc)
+```
+
+Open imperviousness data 
+
+```{r}
+imp <- rast("../input/NC_imperviousness_2019.tif")
+same.crs(crs(imp), "EPSG:4326")
+same.crs(crs(imp), "EPSG:5070")
+plot(imp)
+# check that linear units is in meters:
+linearUnits(imp)
+```
+Create 300m raster with aggregated imperviousness
+
+```{r}
+imp_agg <- aggregate(imp, fact = 10, fun = "mean") # aggregation at 300m
+plot(imp_agg>20)
+nc_proj <- terra::project(nc, crs(imp))
+imp_agg <- terra::mask(imp_agg, nc_proj)
+plot(imp_agg>20)
+```
+
+```{r}
+# save 300m prediction grid as raster 
+pred_rast <- imp_agg
+
+# save 300m prediction grid as vector
+pred_vect <- as.points(pred_rast)
+plot(pred_vect, y="NC_imperviousness_2019")
+```
+
+```{r}
+pred_rast
+extend(pred_rast, c(3,3))
+```
+
+# Land cover ratio in buffers
+
+#### Open land cover data 
+
+```{r}
+lc <- rast("../input/NC_nlcd_crs-wgs84.tif")
+nc_proj <- terra::project(nc, crs(lc))
+lc <- terra::crop(lc, nc_proj)
+plot(lc)
+```
+
+#### Extraction example on a spatial subset 
+
+```{r}
+lat <- c(35.6, 36.11, 36.11, 35.6)
+lon <- c(-79.19, -79.19, -78.39, -78.39)
+ext_rtp <- vect(cbind(lon, lat), type = "polygons", crs="EPSG:4326")
+ext_rtp <- terra::project(ext_rtp, crs(pred_rast))
+plot(ext_rtp)
+pred_rast_rtp <- terra::crop(pred_rast, ext_rtp)
+plot(pred_rast_rtp)
+pred_vect_rtp <- terra::as.points(pred_rast_rtp)
+plot(pred_vect_rtp)
+```
+
+
+
+
+Create NLCD dataframe with all information
+
+```{r}
+nlcd_classes <- list(value = c(11, 21, 22, 23, 24, 31, 41, 42, 43, 52,
+                               71, 81, 82, 90, 95),
+                     class = c("WTR", "OSD", "LID", "MID", "HID", 
+                                     "BRN", "DFO", "EFO", "MFO", "SHB", 
+                                     "GRS", "PAS", "CRP", "WDW", "EHW"),
+                     names = c("Open Water", 
+                               "Developed, Open Space", 
+                               "Developed, Low Intensity", 
+                               "Developed, Medium Intensity",
+                               "Developed, High Intensity",
+                               "Barren Land", 
+                               "Deciduous Forest",
+                               "Evergreen Forest", 
+                               "Mixed Forest",
+                               "Shrub/Scrub", 
+                               "Herbaceous", 
+                               "Hay/Pasture", 
+                               "Cultivated Crops", 
+                               "Woody Wetlands", 
+                               "Emergent Herbaceous Wetlands"),
+                     col = c("#476ba1", "#decaca", "#d99482", "#ee0000",
+                     "#ab0000", "#b3aea3", "#68ab63", "#1c6330",
+                     "#b5ca8f",	"#ccba7d",	"#e3e3c2", "#dcd93d", 
+                     "#ab7028", "#bad9eb", "#70a3ba")) 
+nlcd_classes <- as.data.frame(nlcd_classes)
+levels(lc) <- nlcd_classes
+
+```
+
+Function to compute NLCD class ratio per buffer (150m-radius circle) 
+
+```{r}
+# x is a SpatVector with crs unit in meter 
+# nlcd is a 30m-resolution raster 
+compute_ndld_class_ratio0 <- function(spvect, nlcd, width = 150) {
+  
+  # create circle buffers with 150m radius 
+  bufs_pol <- terra::buffer(spvect, width = width)
+  
+  # crop nlcd raster
+  extent <- terra::ext(bufs_pol)
+  nlcd_cropped <- terra::crop(nlcd, extent)
+  
+  # turn nlcd variable to dummies 
+  nlcd_cropped_df <- as.data.frame(nlcd_cropped, xy = T) 
+  nlcd_cropped_df <- dummy_cols(nlcd_cropped_df)
+  nlcd_cropped <- as_spatraster(nlcd_cropped_df, 
+                                xycols=c(1,2), 
+                                crs = crs(nlcd_cropped))
+  
+  # ratio of each nlcd class per buffer
+  nlcd_at_bufs <- terra::extract(nlcd_cropped, 
+                                bufs_pol, 
+                                fun = function(x) sum(x, na.rm=T)/length(x))
+  new_spvect <- cbind(spvect, nlcd_at_bufs)
+  new_spvect <- new_spvect[names(new_spvect)[grepl("class_",
+                                                   names(new_spvect))]]
+  names(new_spvect) <- sub("class_", "", names(new_spvect))
+  return(new_spvect)
+}
+
+```
+
+Application to RTP area 
+
+```{r}
+start_time <- Sys.time()
+pred_nlcd_ratio_vect <- compute_ndld_class_ratio0(pred_vect_rtp, lc)
+end_time <- Sys.time()
+end_time - start_time
+pred_nlcd_ratio_df <- as.data.frame(pred_nlcd_ratio_vect, geom = "XY")           
+pred_nlcd_ratio_df <- cbind(pred_nlcd_ratio_df[, c("x", "y")], 
+                            pred_nlcd_ratio_df[,
+                      !(colnames(pred_nlcd_ratio_df) %in% c("x", "y"))])
+pred_nlcd_ratio_rast <- as_spatraster(pred_nlcd_ratio_df, xycols=c(1,2))
+
+nlcd_classes
+
+ggplot() +
+  geom_spatraster(data = pred_nlcd_ratio_rast) +
+  facet_wrap(~lyr, ncol = 4) +
+  scale_fill_viridis()
+```
+
+
+## Final function 
+
+It uses exactextractr library and is much more efficient. 
+
+```{r}
+source("../R/process_spatial_covariates.R")
+```
+
+```{r}
+start_time <- Sys.time()
+pred_nlcd_ratio_vect <- compute_ndld_class_ratio(pred_vect_rtp, lc)
+end_time <- Sys.time()
+end_time - start_time
+
+pred_nlcd_ratio_df <- as.data.frame(pred_nlcd_ratio_vect, geom = "XY")           
+pred_nlcd_ratio_df <- cbind(pred_nlcd_ratio_df[, c("x", "y")], 
+                            pred_nlcd_ratio_df[,
+                      !(colnames(pred_nlcd_ratio_df) %in% c("x", "y"))])
+pred_nlcd_ratio_rast <- as_spatraster(pred_nlcd_ratio_df, xycols=c(1,2))
+
+nlcd_classes
+
+ggplot() +
+  geom_spatraster(data = pred_nlcd_ratio_rast) +
+  facet_wrap(~lyr, ncol = 4) +
+  scale_fill_viridis()
+
+```
+

@@ -1,12 +1,12 @@
 ---
-title: "land_cover_ratio"
+title: "Land cover ratio: example on RTP area"
 output: html_document
 date: "2023-11-09"
 ---
 
 Load function
 
-```{r}
+```{r, message=F}
 if (!require(pacman)){
     install.packages('pacman')
     library(pacman)
@@ -24,33 +24,35 @@ same.crs(crs(nc), "EPSG:6543")
 plot(nc)
 ```
 
-Open imperviousness data 
+## Create prediction grid
+
+Open imperviousness data
 
 ```{r}
 imp <- rast("../input/NC_imperviousness_2019.tif")
 same.crs(crs(imp), "EPSG:4326")
 same.crs(crs(imp), "EPSG:5070")
+nc_proj <- terra::project(nc, crs(imp))
+imp <- terra::mask(imp, nc_proj)
 plot(imp)
 # check that linear units is in meters:
 linearUnits(imp)
 ```
+
 Create 300m raster with aggregated imperviousness
 
 ```{r}
 imp_agg <- aggregate(imp, fact = 10, fun = "mean") # aggregation at 300m
-plot(imp_agg>20)
-nc_proj <- terra::project(nc, crs(imp))
 imp_agg <- terra::mask(imp_agg, nc_proj)
 plot(imp_agg>20)
 ```
 
 ```{r}
-# save 300m prediction grid as raster 
+# 300m prediction grid as raster 
 pred_rast <- imp_agg
 
-# save 300m prediction grid as vector
+# 300m prediction grid as vector
 pred_vect <- as.points(pred_rast)
-plot(pred_vect, y="NC_imperviousness_2019")
 ```
 
 ```{r}
@@ -58,37 +60,16 @@ pred_rast
 extend(pred_rast, c(3,3))
 ```
 
-# Land cover ratio in buffers
+## Add land cover on RTP area example
 
-#### Open land cover data 
+Open land cover data and create NLCD dataframe with all information
 
 ```{r}
 lc <- rast("../input/NC_nlcd_crs-wgs84.tif")
 nc_proj <- terra::project(nc, crs(lc))
 lc <- terra::crop(lc, nc_proj)
 plot(lc)
-```
 
-#### Extraction example on a spatial subset 
-
-```{r}
-lat <- c(35.6, 36.11, 36.11, 35.6)
-lon <- c(-79.19, -79.19, -78.39, -78.39)
-ext_rtp <- vect(cbind(lon, lat), type = "polygons", crs="EPSG:4326")
-ext_rtp <- terra::project(ext_rtp, crs(pred_rast))
-plot(ext_rtp)
-pred_rast_rtp <- terra::crop(pred_rast, ext_rtp)
-plot(pred_rast_rtp)
-pred_vect_rtp <- terra::as.points(pred_rast_rtp)
-plot(pred_vect_rtp)
-```
-
-
-
-
-Create NLCD dataframe with all information
-
-```{r}
 nlcd_classes <- list(value = c(11, 21, 22, 23, 24, 31, 41, 42, 43, 52,
                                71, 81, 82, 90, 95),
                      class = c("WTR", "OSD", "LID", "MID", "HID", 
@@ -118,7 +99,19 @@ levels(lc) <- nlcd_classes
 
 ```
 
-Function to compute NLCD class ratio per buffer (150m-radius circle) 
+#### Select RTP area
+
+```{r}
+lat <- c(35.6, 36.11, 36.11, 35.6)
+lon <- c(-79.19, -79.19, -78.39, -78.39)
+ext_rtp <- vect(cbind(lon, lat), type = "polygons", crs="EPSG:4326")
+ext_rtp <- terra::project(ext_rtp, crs(pred_rast))
+pred_rast_rtp <- terra::crop(pred_rast, ext_rtp)
+plot(pred_rast_rtp)
+pred_vect_rtp <- terra::as.points(pred_rast_rtp)
+```
+
+#### Function to compute NLCD class ratio per buffer 
 
 ```{r}
 # x is a SpatVector with crs unit in meter 
@@ -152,7 +145,7 @@ compute_ndld_class_ratio0 <- function(spvect, nlcd, width = 150) {
 
 ```
 
-Application to RTP area 
+Application to RTP area
 
 ```{r}
 start_time <- Sys.time()
@@ -173,10 +166,9 @@ ggplot() +
   scale_fill_viridis()
 ```
 
+#### Final optimized function
 
-## Final function 
-
-It uses exactextractr library and is much more efficient. 
+It uses exactextractr library and is much more efficient.
 
 ```{r}
 source("../R/process_spatial_covariates.R")
@@ -202,4 +194,3 @@ ggplot() +
   scale_fill_viridis()
 
 ```
-

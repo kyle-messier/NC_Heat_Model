@@ -41,7 +41,8 @@ compute_ndld_class_ratio <- function(spvect, nlcd, buf_radius = 150) {
   nlcd_at_bufs <- exact_extract(nlcd_cropped, 
                                 st_geometry(bufs_pol), 
                                 fun = "frac",
-                                stack_apply = T)
+                                stack_apply = T, 
+                                progress = F)
   
   new_spvect <- cbind(spvect, nlcd_at_bufs)
   new_spvect <- new_spvect[names(new_spvect)[grepl("frac_",

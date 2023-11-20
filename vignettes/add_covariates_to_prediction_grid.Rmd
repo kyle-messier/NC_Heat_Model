@@ -42,7 +42,7 @@ lon <- c(-79.19, -79.19, -78.39, -78.39)
 ext_rtp <- vect(cbind(lon, lat), type = "polygons", crs="EPSG:4326")
 ext_rtp <- terra::project(ext_rtp, crs(pred_rast))
 pred_rast_rtp <- terra::crop(pred_rast, ext_rtp)
-plot(pred_rast_rtp)
+#plot(pred_rast_rtp)
 pred_vect_rtp <- terra::as.points(pred_rast_rtp)
 ```
 
@@ -53,10 +53,52 @@ Tree canopy height
 
 ```{r}
 pred_vect_rtp <- add_canopy_h(sp_vect = pred_vect_rtp)
-plot(x = pred_vect_rtp, y = "canopy_h", cex = 0.2)
+#plot(x = pred_vect_rtp, y = "canopy_h", cex = 0.2)
 ```
+Digital elevation model 
 
 ```{r}
-
+pred_vect_rtp <- add_dem(sp_vect = pred_vect_rtp)
+#plot(x = pred_vect_rtp, y = "dem", cex = 0.2)
 ```
+
+Tree canopy cover 
+
+```{r}
+pred_vect_rtp <- add_tcc(sp_vect = pred_vect_rtp)
+#plot(x = pred_vect_rtp, y = "tcc", cex = 0.2)
+```
+
+Building footprint
+
+```{r}
+pred_vect_rtp <- add_build_fp(sp_vect = pred_vect_rtp)
+#plot(x = pred_vect_rtp, y = "build_fp", cex = 0.2)
+```
+
+Building height
+
+```{r}
+pred_vect_rtp <- add_build_h(sp_vect = pred_vect_rtp)
+#plot(x = pred_vect_rtp, y = "build_h", cex = 0.2)
+```
+
+Land cover ratio
+ 
+```{r}
+lc <- rast("../input/NC_nlcd_crs-wgs84.tif")
+pred_vect_rtp <- add_nlcd_class_ratio(pred_vect_rtp, nlcd = lc)
+```
+
+
+```{r}
+pred_rast_rtp <- terra::rasterize(pred_vect_rtp, 
+                         pred_rast_rtp, 
+                         field = names(pred_vect_rtp))
+head(pred_rast_rtp)
+plot(pred_rast_rtp[[1:6]])
+plot(pred_rast_rtp[[7:21]])
+```
+
+
 

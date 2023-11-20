@@ -22,31 +22,15 @@ project_imp <- function(crs_dest, crs_name) {
   }
 }
 
-#' Compute land cover classes ratio in circle buffers arount points
-#'
-#' @param spvect terra::SpatVector of points geometry
-#' @param nlcd national land cover dataset as a terra::SpatRaster
-#' @param buf_radius numeric giving the radius of buffer around points 
-#' @export
-compute_ndld_class_ratio <- function(spvect, nlcd, buf_radius = 150) {
-  # create circle buffers with 150m radius 
-  bufs_pol <- terra::buffer(spvect, width = buf_radius)
-  bufs_pol <- sf::st_as_sf(bufs_pol)
-  
-  # crop nlcd raster
-  extent <- terra::ext(bufs_pol)
-  nlcd_cropped <- terra::crop(nlcd, extent)
-  
-  # ratio of each nlcd class per buffer
-  nlcd_at_bufs <- exact_extract(nlcd_cropped, 
-                                st_geometry(bufs_pol), 
-                                fun = "frac",
-                                stack_apply = T, 
-                                progress = F)
-  
-  new_spvect <- cbind(spvect, nlcd_at_bufs)
-  new_spvect <- new_spvect[names(new_spvect)[grepl("frac_",
-                                                   names(new_spvect))]]
-  names(new_spvect) <- sub("frac_", "", names(new_spvect))
-  return(new_spvect)
+#' Aggregate digital elevation model (~1m to ~30m)
+#' 
+#' @param dem_path A path to dem file with high resolution 
+agg_dem <- function(dem_path = "../input/NC-DEM.tif") {
+  dem <- rast(dem_path)
+  dem_agg <- aggregate(dem, fact = 30, fun = "median")
+  writeRaster(dem_agg,
+              filename = "../input/NC-DEM-agg.tif",
+              overwrite = T
+  )
+  return(dem_agg)
 }

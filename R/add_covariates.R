@@ -1,4 +1,5 @@
 library(terra)
+library(data.table)
 
 #' Add imperviousness covariate to a terra::SpatVector
 #'
@@ -56,7 +57,7 @@ add_tcc <- function(tcc_path = "../input/NC_tree-canopy-cover_2021.tif",
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "dem"
 #' @export
-add_dem <- function(dem_path = "../input/NC-DEM.tif",
+add_dem <- function(dem_path = "../input/NC-DEM-agg.tif",
                     sp_vect) {
   if (!file.exists(dem_path)) {
     stop("dem_path does not exist")
@@ -129,11 +130,16 @@ add_build_fp <- function(build_fp_path = "../input/NC_building-footprints/NorthC
     rename(build_fp = names(build_fp)) %>%
     terra::project(., crs(sp_vect))
   if (any(is.na(sp_vect_cov$build_fp))) {
-    
     stop("NAs found in build_fp column")
   }
   return(sp_vect_cov)
 }
+
+
+build_h_table <- as.data.table(list("h_number" = c(1,2,3,4,5,6),
+                                    "h_name" = c("Very High", "High", 
+                                                 "Medium-High", "Medium",
+                                                 "Low-Medium", "Low"))) 
 
 
 #' Add building height covariate to a terra::SpatVector
@@ -159,14 +165,51 @@ add_build_h <- function(
   sp_vect_cov <- sp_vect
   sp_vect_cov$build_h <- sp_vect_build_h$Height_cat
   sp_vect_cov <- terra::project(sp_vect_cov, crs(sp_vect))
-
+  # turn into numeric because rasters use numerics instead of factors
+  sp_vect_cov[sp_vect_cov$build_h == "Very High", "build_h"] <- 1
+  sp_vect_cov[sp_vect_cov$build_h == "High", "build_h"] <- 2 
+  sp_vect_cov[sp_vect_cov$build_h == "Medium-High", "build_h"] <- 3 
+  sp_vect_cov[sp_vect_cov$build_h == "Medium", "build_h"] <- 4 
+  sp_vect_cov[sp_vect_cov$build_h == "Low-medium", "build_h"] <- 5 
+  sp_vect_cov[sp_vect_cov$build_h == "Low", "build_h"] <- 6 
+  sp_vect_cov$build_h <- as.numeric(sp_vect_cov$build_h)
+  
   if (all(is.na(sp_vect_cov$build_h) | all(sp_vect_cov$build_h == "NA"))) {
     stop("build_h column is only NA")
   }
   return(sp_vect_cov)
 }
 
+lc <- rast("../input/NC_nlcd_crs-wgs84.tif")
 
+#' Compute land cover classes ratio in circle buffers arount points
+#'
+#' @param spvect terra::SpatVector of points geometry
+#' @param nlcd national land cover dataset as a terra::SpatRaster
+#' @param buf_radius numeric giving the radius of buffer around points 
+#' @export
+add_nlcd_class_ratio <- function(spvect, nlcd = lc, buf_radius = 150) {
+  # create circle buffers with 150m radius 
+  bufs_pol <- terra::buffer(spvect, width = buf_radius)
+  bufs_pol <- sf::st_as_sf(bufs_pol)
+  
+  # crop nlcd raster
+  extent <- terra::ext(bufs_pol)
+  nlcd_cropped <- terra::crop(nlcd, extent)
+  
+  # ratio of each nlcd class per buffer
+  nlcd_at_bufs <- exact_extract(nlcd_cropped, 
+                                st_geometry(bufs_pol), 
+                                fun = "frac",
+                                stack_apply = T, 
+                                progress = F)
+  new_spvect <- nlcd_at_bufs[names(nlcd_at_bufs)[grepl("frac_",
+                                                       names(nlcd_at_bufs))]]
+  new_spvect <- cbind(spvect, new_spvect)
+  
+  #names(new_spvect) <- sub("frac_", "", names(new_spvect))
+  return(new_spvect)
+}
 
 #' Add corresponding NC county to a datatable containing lat, lon
 #' 

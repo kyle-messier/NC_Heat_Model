@@ -100,5 +100,9 @@ plot(pred_rast_rtp[[1:6]])
 plot(pred_rast_rtp[[7:21]])
 ```
 
+Add terrain covariates to raster
 
-
+```{r}
+pred_rast_rtp <- add_terrain(pred_rast_rtp)
+plot(pred_rast_rtp[[22:25]])
+```

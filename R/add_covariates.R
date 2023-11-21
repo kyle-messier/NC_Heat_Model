@@ -73,6 +73,36 @@ add_dem <- function(dem_path = "../input/NC-DEM-agg.tif",
   return(sp_vect_cov)
 }
 
+#' Add terrain covariates to a terra::SpatRaster
+#'
+#' @param rast_dem a terra::SpatRaster with the column "dem"
+#' @returns the same terra::SpatRaster with other terrain covariates
+#' @export
+add_terrain <- function(rast_dem){
+  if(!("dem" %in% names(rast_dem))) {
+    stop("dem is not in raster's layers or mispelled.")
+  }
+  
+  rast_dem$slope <- terra::terrain(rast_dem$dem, "slope")
+  
+  # aspect is in degrees, clockwise from North
+  # if no slope: 90
+  rast_dem$aspect <- terra::terrain(rast_dem$dem, "aspect")
+  
+  # Roughness is the difference between the maximum and the
+  # minimum value of a cell and its 8 surrounding cells.
+  rast_dem$roughness <- terra::terrain(rast_dem$dem, "roughness")
+  
+  # Values encoded as power of 2 (x is the cell): IT IS A DISCRETE VARIABLE
+  # 32 64 128
+  # 16 x   1
+  # 8  4  2
+  # Cells are set to 0 if no lower neighboring.
+  rast_dem$flowdir <- terra::terrain(rast_dem$dem, "flowdir")
+  return(rast_dem)
+}
+
+
 #' Add forest height
 #'
 #' @param build_fp_path a character with the path to building footprint raster file

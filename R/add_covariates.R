@@ -196,13 +196,13 @@ add_build_h <- function(
   sp_vect_cov$build_h <- sp_vect_build_h$Height_cat
   sp_vect_cov <- terra::project(sp_vect_cov, crs(sp_vect))
   # turn into numeric because rasters use numerics instead of factors
-  sp_vect_cov[sp_vect_cov$build_h == "Very High", "build_h"] <- 1
-  sp_vect_cov[sp_vect_cov$build_h == "High", "build_h"] <- 2 
-  sp_vect_cov[sp_vect_cov$build_h == "Medium-High", "build_h"] <- 3 
-  sp_vect_cov[sp_vect_cov$build_h == "Medium", "build_h"] <- 4 
-  sp_vect_cov[sp_vect_cov$build_h == "Low-medium", "build_h"] <- 5 
-  sp_vect_cov[sp_vect_cov$build_h == "Low", "build_h"] <- 6 
-  sp_vect_cov$build_h <- as.numeric(sp_vect_cov$build_h)
+  #sp_vect_cov[sp_vect_cov$build_h == "Very High", "build_h"] <- 1
+  #sp_vect_cov[sp_vect_cov$build_h == "High", "build_h"] <- 2 
+  #sp_vect_cov[sp_vect_cov$build_h == "Medium-High", "build_h"] <- 3 
+  #sp_vect_cov[sp_vect_cov$build_h == "Medium", "build_h"] <- 4 
+  #sp_vect_cov[sp_vect_cov$build_h == "Low-medium", "build_h"] <- 5 
+  #sp_vect_cov[sp_vect_cov$build_h == "Low", "build_h"] <- 6 
+  #sp_vect_cov$build_h <- as.numeric(sp_vect_cov$build_h)
   
   if (all(is.na(sp_vect_cov$build_h) | all(sp_vect_cov$build_h == "NA"))) {
     stop("build_h column is only NA")
@@ -274,34 +274,62 @@ add_nc_county <- function(datatable, crs) {
   
 }
 
+era5 <- fread("../input/era5_daily_reanalysis_2022-05-02_2022-09-29.csv")
+era5 <- era5 %>% rename(time = date)
+
+# convert era5 to stdt and then to SpatRasterDataset
+source("../R/manipulate_spacetime_data.R")
+era5_stdt <- create_stdtobj(era5, "EPSG:4326")
+era5_rastds <- convert_stdt_spatrastdataset(era5_stdt)
+
+#' Add minimum temperature computed from ERA5 reanalysis to ???\
+#'
+#' @param data_vect An stdtobj
+#' @param era5 A SpatRasterDataset with era5 covariates
+#' @returns a SpatVect in long format, each line corresponds to 1 lat-lon-time
+#' @export
+add_era5_vect <- function(data_vect, era5 = era5_rastds) {
+  # empty prediction SpatVector
+  new_data_vect <- vect(geom(data_vect)[, c("x", "y")], 
+                        type = "points", 
+                        crs = crs(data_vect))
+
+  # extract each daily covariate based on era5 and convert to raster
+  vect_list <- list()
+  for (i in 2:7){
+    vect_list[[i-1]] <- terra::project(new_data_vect, 
+                                              crs(era5[[i]])) %>%
+      terra::extract(x = era5[[i]], y = ., bind = T) %>%
+      terra::project(., crs(new_data_vect)) %>%
+      as.data.frame(., xy=T)
+  }
+  return(vect_list)
+}
+
 
 #' Add minimum temperature computed from ERA5 reanalysis to ???\
 #'
 #' @param data An stdtobj
 #' @returns ???
 #' @export
-add_era5_tn <- function(data) {
-  stdt <- stdtobj$stdt
-  crs_data <- stdtobj$crs_stdt
+add_era5_rast <- function(data_rast, era5 = era5) {
+  data_vect <- terra::as.points(data_rast)
+  # empty prediction SpatVector
+  new_data_vect <- vect(geom(data_vect)[, c("x", "y")], 
+                      type = "points", 
+                      crs = crs(data_vect))
   
-  # open minimum temperatures from era5 reanalysis
-  era5_TNwmo <- rast(paste0(
-    "../input/",
-    "era5_daily_reanalysis_20220601_20220831_",
-    "TNwmo.tif"
-  ))
-  era5_TN7am <- rast(paste0(
-    "../input/",
-    "era5_daily_reanalysis_20220601_20220831_",
-    "TN7am.tif"
-  ))
-  era5_TN12am <- rast(paste0(
-    "../input/",
-    "era5_daily_reanalysis_20220601_20220831_",
-    "TN12am.tif"
-  ))
-
-  sp_vect_cov <- project(sp_vect, crs(era5_TNwmo))
-
-  return()
+  # extract each daily covariate based on era5 and convert to raster
+  pred_rastds_era5 <- list()
+  for (i in 2:7){
+    pred_rastds_era5[[i-1]] <- terra::project(new_data_vect, 
+                                              crs(era5_rastds[[i]])) %>%
+      terra::extract(x = era5_rastds[[i]], y = ., bind = T) %>%
+      terra::project(., crs(new_data_vect)) %>%
+      terra::rasterize(., pred_rast, field = names(.))
+  }
+  
+  # turn into a SpatRasterDataset
+  pred_rastds_era5 <- terra::sds(pred_rastds_era5)
+  names.(pred_rastds_era5) <- names(era5_rastds[[2:7]])
 }

@@ -535,7 +535,9 @@ print(reg_lasso_cv)
 Quadratic model (AIC criteria model selection)
 
 ```{r}
-reg_glm <- glm(tmin ~ .^2, data = train_rnds[, c("tmin", "tcc", "imp", "build.fp", "dem", "TN12am")])
+reg_glm <- glm(tmin ~ .^2, 
+               data = train_rnds[, c("tmin", "tcc", "imp", 
+                                                 "build.fp", "dem", "TN12am")])
 
 
 reg_glm_step <- step(reg_glm, direction = "backward")
@@ -545,7 +547,9 @@ anova(reg_glm_step, test_rnds = "F")
 LASSO (L1 shrinkage)
 
 ```{r}
-x_mat2 <- model.matrix(tmin ~ .^2 - 1, data = train_rnds[, c("tmin", "tcc", "imp", "build.fp", "dem", "TN12am")])
+x_mat2 <- model.matrix(tmin ~ .^2 - 1, 
+                       data = train_rnds[, c("tmin", "tcc", "imp",
+                                             "build.fp", "dem", "TN12am")])
 reg_lasso2 <- glmnet(y = train_rnds$tmin, x = x_mat2)
 reg_lasso2_cv <- cv.glmnet(y = train_rnds$tmin, x = x_mat2)
 coef(reg_lasso2_cv, s = "lambda.1se")
@@ -633,11 +637,15 @@ m
 Results with LASSO regression on quadratic covariates
 
 ```{r}
-x_mat2 <- model.matrix(tmin ~ .^2 - 1, data = train_rnds[, c("tmin", "tcc", "imp", "build.fp", "dem", "TN12am")])
-x_mat2.test <- model.matrix(tmin ~ .^2 - 1, data = test_rnds[, c("tmin", "tcc", "imp", "build.fp", "dem", "TN12am")])
+x_mat2 <- model.matrix(tmin ~ .^2 - 1, 
+                       data = train_rnds[, c("tmin", "tcc", "imp", 
+                                             "build.fp", "dem", "TN12am")])
+x_mat2.test <- model.matrix(tmin ~ .^2 - 1, 
+                            data = test_rnds[, c("tmin", "tcc", "imp", 
+                                                 "build.fp", "dem", "TN12am")])
 
 reg_lasso2 <- glmnet(y = train_rnds$tmin, x = x_mat2)
-test_rnds$lasso2.pred <- predict(reg_lasso2, newx = x_mat2.test, s=0.1)
+test_rnds$lasso2.pred <- predict(reg_lasso2, newx = x_mat2.test, s = 0.1)
 
 test_rnds$lasso2.res <- test_rnds$lasso2.pred - test_rnds$tmin
 sum((test_rnds$lasso2.res)^2) / nrow(test_rnds)
@@ -648,11 +656,12 @@ pred_p$lasso2.rnds.pred <- predict(reg_lasso2, newdata = pred_p)
 
 ```{r}
 rf.reg <- randomForest(
-  tmin ~ tcc + imp + build.fp + build.h + dem + TN12am, 
-  data=train_rnds, 
-  xtest_rnds=test_rnds[, .(tcc,imp,build.fp,build.h,dem,TN12am)], 
-  ytest_rnds=test_rnds$tmin,
-  ntree=500, mtry=2, do.trace=50, importance=TRUE)
+  tmin ~ tcc + imp + build.fp + build.h + dem + TN12am,
+  data = train_rnds,
+  xtest_rnds = test_rnds[, .(tcc, imp, build.fp, build.h, dem, TN12am)],
+  ytest_rnds = test_rnds$tmin,
+  ntree = 500, mtry = 2, do.trace = 50, importance = TRUE
+)
 attributes(rf.reg)
 rf.reg$mtry
 ```

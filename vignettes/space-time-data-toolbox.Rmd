@@ -10,7 +10,7 @@ source("../R/manipulate_spacetime_data.R")
 
 # Existing space-time objects
 
-A data.frame containing lon, lat and time columns can be considered as a space-time object. But there is not metadata about the coordinate system and the time reference.
+A data.frame containing lon, lat and time columns can be considered as a space-time object. But there is no metadata about the coordinate system and the time reference.
 
 ```{r}
 lon <- seq(-112, -101, length.out = 5) # create lon sequence

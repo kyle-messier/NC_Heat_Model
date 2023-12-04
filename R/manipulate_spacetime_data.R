@@ -1,17 +1,11 @@
-library(gstat)
+.libPaths("/ddn/gs1/home/marquesel/R/x86_64-redhat-linux-gnu-library/4.3/")
 library(terra)
 library(sf)
 library(sftime)
-library(tidyverse)
-library(ggplot2)
-library(ggspatial)
-library(gridExtra)
 library(tidyterra)
-library(rgeos)
 library(data.table) # -- for large flat datasets
-library(DT)
-library(styler)
 library(reshape2)
+library(stringr)
 
 #' Create a new type of spacetime object (stdtobj)
 #'

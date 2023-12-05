@@ -1,0 +1,388 @@
+---
+title: "spatial_lm_temperature"
+output: html_document
+date: "2023-10-20"
+---
+
+
+Libraries
+
+```{r, message=F}
+library(gstat)
+library(terra)
+library(sf)
+library(sftime)
+library(tidyverse)
+library(ggplot2)
+library(ggspatial)
+library(gridExtra)
+library(tidyterra)
+library(rgeos)
+library(data.table) # -- for large flat datasets
+library(DT)
+
+# -- for timeseries
+library(lubridate)
+library(xts)
+
+# -- ml libraries
+library(caret)
+library(glmnet)
+library(randomForest)
+
+# -- code style
+library(styler)
+
+# -- spatial k-fold CV
+library(spatialsample)
+
+# -- tidy tools for quantifying how well model fits to a data set
+library(yardstick)
+```
+
+My own functions to manipulate data:
+
+```{r}
+source("../R/manipulate_spacetime_data.R")
+source("../R/open_data_heatmodel.R")
+source("../R/ml_check_input_data.R")
+source("../R/ml_create_spatial_train_test_sets.R")
+source("../R/ml_create_spatial_cross_validation.R")
+source("../R/ml_define_models.R")
+source("../R/ml_compute_plot_scores_outputs.R")
+```
+
+#### Open data on a specific period
+
+```{r}
+obs <- fread("../input/NC-monitors-dailysummary-20220601-20220831-space-time-covariates.csv")
+nc_borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp")
+
+p <- seq(as.Date("2022-07-20"), as.Date("2022-07-22"), by = "1 day")
+pred_p <- open_pred_period(p)
+obs_p <- obs[date %in% p, ]
+```
+
+Define origin and destination projections
+
+```{r}
+crs_wgs84 <- "epsg:4326"
+crs_nad83 <- "epsg:5070"
+```
+
+Project data.tables lon and lat variables
+
+```{r}
+pred_p <- project_dt(pred_p, crs_wgs84, crs_nad83)
+obs_p <- project_dt(obs_p, crs_wgs84, crs_nad83)
+```
+
+Add county to datatables
+
+```{r}
+pred_p <- add_nc_county(pred_p, crs_nad83)
+obs_p <- add_nc_county(obs_p, crs_nad83)
+```
+
+Remove NA in obs_p_sft
+
+```{r}
+obs_p <- obs_p[!is.na(obs_p$tmin) & !is.na(obs_p$tmax), ]
+```
+
+#### Check data content
+
+```{r}
+meta_obs <- c("lon", "lat", "date", "station", "county")
+meta_pred <- c("lon", "lat", "date")
+predictors <- c("tcc", "imp", "build.fp", "build.h", "dem", "TN12am")
+# -- quantitative predictors
+predictors_q <- c("tcc", "imp", "build.fp", "dem", "TN12am")
+predicted <- "tmin"
+check_obs(obs_p, meta_obs, predictors, predicted)
+check_pred_grid(pred_p, meta_pred, predictors)
+```
+
+
+#### Prepare train and test samples
+
+Create several types of train and test sets:
+
+-   rndst: select randomly the observations in space and time
+
+-   rnds: select randomly the stations (and keep the whole timeserie)
+
+-   t: seperate train and test by dates (here: remove the last date of the dataset to evaluate capacity of prediction)
+
+-   [area_name]: seperate train and test by selecting stations (and their entire timeserie) according to a contiguous area (group of counties). Several options are possible (test can be urban - mountain - piedmont - sea - plain).
+
+-   net: select monitors per network. Reliable networks: ECONET, CRN, WBAN. Less reliable: COOP and RAWS.
+
+```{r}
+set.seed(111)
+
+# -- regular 1-fold
+sets_rndst <- create_sets_rndst(obs_p)
+train_rndst <- sets_rndst$train
+test_rndst <- sets_rndst$test
+
+# -- randomly 1-fold locations out
+sets_rnds <- create_sets_rnds(obs_p)
+train_rnds <- sets_rnds$train
+test_rnds <- sets_rnds$test
+
+# -- randomly 1-fold dates out
+test_dates <- as.Date("2022-07-22")
+sets_t <- create_sets_t(obs_p, test_dates)
+train_t <- sets_t$train
+test_t <- sets_t$test
+
+# -- blocks 1-fold locations out
+
+urb <- c("Durham", "Orange", "Chatham", "Wake")
+sets_s <- create_sets_s(obs_p, urb)
+train_urb <- sets_s$train
+test_urb <- sets_s$test
+
+mou <- c("Wilkes", "Ashe", "Watauga", "Caldwell")
+sets_s <- create_sets_s(obs_p, mou)
+train_mou <- sets_s$train
+test_mou <- sets_s$test
+
+pie <- c("Rowan", "Davidson", "Davie", "Forsyth")
+sets_s <- create_sets_s(obs_p, pie)
+train_pie <- sets_s$train
+test_pie <- sets_s$test
+
+pla <- c("Wilson", "Edgecombe", "Nash", "Halifax")
+sets_s <- create_sets_s(obs_p, pla)
+train_pla <- sets_s$train
+test_pla <- sets_s$test
+
+sea <- c("Tyrrell", "Washington", "Dare", "Hyde")
+sets_s <- create_sets_s(obs_p, sea)
+train_sea <- sets_s$train
+test_sea <- sets_s$test
+
+# -- selection with network origin
+net <- c("ECONET", "CRN", "WBAN")
+sets_net <- create_sets_net(obs_p, net)
+train_net <- sets_net$train
+test_net <- sets_net$test
+```
+
+Plot training et testing sample tile plots and maps
+
+```{r}
+df_test <- test_rndst
+df_test$set <- "test"
+df_train <- train_rndst
+df_train$set <- "train"
+df <- rbind(df_train, df_test)
+
+ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
+  geom_tile() +
+  labs(title = "Test on random observations") +
+  scale_fill_manual(values = c(train = "lightblue", 
+                               test = "tomato4")) +
+  my_theme_paper() +
+  theme(
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank()
+  )
+```
+
+```{r}
+df_test <- test_rnds
+df_test$set <- "test"
+df_train <- train_rnds
+df_train$set <- "train"
+df <- rbind(df_train, df_test)
+ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
+  geom_tile() +
+  labs(title = "Test on random monitors") +
+  scale_fill_manual(values = c(train = "lightblue", 
+                               test = "tomato4")) +
+  theme(
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank()
+  )
+```
+
+```{r}
+df_test <- test_t
+df_test$set <- "test"
+df_train <- train_t
+df_train$set <- "train"
+df <- rbind(df_train, df_test)
+ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
+  geom_tile() +
+  labs(title = "Test on last day") +
+  scale_fill_manual(values = c(train = "lightblue", 
+                               test = "tomato4")) +
+  theme(
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank()
+  )
+```
+
+```{r}
+df_test <- test_urb
+df_test$set <- "test"
+df_train <- train_urb
+df_train$set <- "train"
+df <- rbind(df_train, df_test)
+ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
+  geom_tile() +
+  scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on urban county") +
+  theme(
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank()
+  )
+ggplot(df, aes(x = lon, y = lat, color = set)) +
+  geom_point() +
+  scale_color_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on urban counties") +
+  coord_equal()
+```
+
+```{r}
+df_test <- test_mou
+df_test$set <- "test"
+df_train <- train_mou
+df_train$set <- "train"
+df <- rbind(df_train, df_test)
+ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
+  geom_tile() +
+  scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on mountain counties") +
+  theme(
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank()
+  )
+ggplot(df, aes(x = lon, y = lat, color = set)) +
+  geom_point() +
+  scale_color_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on mountain counties") +
+  coord_equal()
+```
+
+```{r}
+df_test <- test_pie
+df_test$set <- "test"
+df_train <- train_pie
+df_train$set <- "train"
+df <- rbind(df_train, df_test)
+ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
+  geom_tile()+
+  scale_fill_manual(values=c("train"="lightblue", test="tomato4"))+
+  labs(title="Test on Piedmont counties")+
+  theme(axis.ticks.y = element_blank(),
+        axis.text.y = element_blank()
+    )  
+ggplot(df, aes(x = lon, y = lat, color = set)) +
+  geom_point()+
+  scale_color_manual(values=c("train"="lightblue", test="tomato4"))+
+  labs(title="Test on Piedmont counties")+
+  coord_equal()
+```
+
+```{r}
+df_test <- test_pla
+df_test$set <- "test"
+df_train <- train_pla
+df_train$set <- "train"
+df <- rbind(df_train, df_test)
+ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
+  geom_tile()+
+  scale_fill_manual(values=c("train"="lightblue", test="tomato4"))+
+  labs(title="Test on plain counties")+
+  theme(axis.ticks.y = element_blank(),
+        axis.text.y = element_blank()
+    )  
+ggplot(df, aes(x = lon, y = lat, color = set)) +
+  geom_point()+
+  scale_color_manual(values=c("train"="lightblue", test="tomato4"))+
+  labs(title="Test on plain counties")+
+  coord_equal()
+```
+
+```{r}
+df_test <- test_sea
+df_test$set <- "test"
+df_train <- train_sea
+df_train$set <- "train"
+df <- rbind(df_train, df_test)
+ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
+  geom_tile()+
+  scale_fill_manual(values=c("train"="lightblue", test="tomato4"))+
+  labs(title="Test on sea counties")+
+  theme(axis.ticks.y = element_blank(),
+        axis.text.y = element_blank()
+    )  
+ggplot(df, aes(x = lon, y = lat, color = set)) +
+  geom_point()+
+  scale_color_manual(values=c("train"="lightblue", test="tomato4"))+
+  labs(title="Test on sea counties")+
+  coord_equal()
+```
+
+#### Prepare spatial k-fold CV
+
+```{r}
+obs_p_sf <- create_sf(obs_p, "epsg:5070")
+sp_samples <- create_sp_fold(obs_p_sf)
+```
+
+Plots 
+
+```{r}
+cluster_llo <- spatial_clustering_cv(obs_p_sf, v = 10)
+block_llo <- spatial_block_cv(obs_p_sf, v = 10)
+net_llo <- spatial_leave_location_out_cv(obs_p_sf,
+  group = network,
+  v = 6
+)
+rnd_llo <- spatial_leave_location_out_cv(obs_p_sf,
+  group = station,
+  v = 10
+)
+autoplot(cluster_llo)
+autoplot(block_llo)
+autoplot(net_llo)
+autoplot(rnd_llo)
+```
+
+#### Fit cross validation 
+
+Formula definition
+
+```{r}
+(formula <- as.formula(paste(predicted, " ~ ", 
+                             paste(predictors, collapse= "+"))))
+(formula_q <- as.formula(paste(predicted, " ~ ", 
+                             paste(predictors_q,
+                                   collapse= "+"))))
+```
+
+```{r}
+cv_fit <- compute_preds_lm_cv(sp_samples)
+cv_rmse <- compute_rmse_cv(cv_fit, predicted=tmin)
+cv_rmse
+```
+
+Plot RMSE per fold
+
+```{r}
+map_rmse_cv(cv_fit, cv_rmse)
+```
+
+
+```{r}
+map_res_cv(cv_fit, tmin)
+```
+
+```{r}
+plot_reg_cv(cv_fit, tmin)
+```

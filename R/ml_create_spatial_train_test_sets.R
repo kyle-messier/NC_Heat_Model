@@ -1,46 +1,3 @@
-if (!require(emojifont)) install.packages('emojifont')
-library(emojifont)
-
-#' Check observation dataset content
-#'
-#' @param data A datatable of observations
-#' @param metadata a list of characters with obs info 
-#' (eg: county, date, lat, lon, ...)
-#' @param predictors a list of characters names of predictors
-#' @param predicted a character with the name of the predicted variable
-check_obs <- function(data, metadata, predictors, predicted) {
-  if (sum(!(metadata %in% colnames(data))) != 0) {
-    stop("some metadata columns are missing")
-  }
-  if (sum(!(predictors %in% colnames(data))) != 0) {
-    stop("some predictors columns are missing")
-  }
-  if (!(predicted %in% colnames(data)) != 0) {
-    stop("predicted variable is missing")
-  }
-  message("observations content: ", emoji("white_check_mark"))
-}
-
-#' Check prediction grid content
-#'
-#' @param data A datatable of observations
-#' @param metadata a list of characters with obs info 
-#' (eg: county, date, lat, lon, ...)
-#' @param predictors a list of characters names of predictors
-check_pred_grid <- function(data, metadata, predictors) {
-  if (sum(!(metadata %in% colnames(data))) != 0) {
-    stop("some metadata columns are missing")
-  }
-  if (sum(!(predictors %in% colnames(data))) != 0) {
-    stop("some predictors columns are missing")
-  }
-  message("prediction grid content: ", emoji("white_check_mark"))
-}
-
-
-
-# Train and test processing
-
 #' Create train and test dataset
 #' by randomly sampling in space and time
 #'
@@ -105,7 +62,7 @@ create_sets_t <- function(obs, test_dates) {
   if (class(test_dates) != "Date") {stop("test_dates is not a Date")}
   if (sum(!(test_dates %in% unique(obs$date))) != 0) {
     stop("some of test_dates are not in obs")
-    }
+  }
   
   train <- obs[!(date %in% test_dates), ]
   test <- obs[date %in% test_dates, ]
@@ -164,36 +121,4 @@ create_sets_net <- function(obs, test_net) {
   
   return(list(train=train, test=test))
 }
-
-#' plot residual according to prediction
-#'
-#' @param pred A vector of prediction
-#' @param res A vector of residuals
-#' @param title A character for plot title
-plot_res <- function(pred, res, title) {
-  ggplot(data.frame(x = as.numeric(pred), y = as.numeric(res)), aes(x, y)) +
-    geom_point(col = "blue", alpha = .5) +
-    ylim(-10, 10) +
-    ylab("Residuals") +
-    xlab("Predicted values") +
-    ggtitle(title) +
-    coord_equal() +
-    geom_hline(yintercept = 0, col = "green")
-}
-
-#' regression plot
-#'
-#' @param pred A vector of prediction
-#' @param res A vector of residuals
-#' @param title A character for plot title
-plot_reg <- function(obs, pred, title) {
-  ggplot(data.frame(x = as.numeric(obs), y = as.numeric(pred)), aes(x, y)) +
-    geom_point(col = "blue", alpha = .5) +
-    geom_abline(slope = 1, intercept = 0, color = "red") +
-    ylab("Predicted") +
-    xlab("Observed") +
-    ggtitle(title) +
-    coord_equal() 
-}
-
 

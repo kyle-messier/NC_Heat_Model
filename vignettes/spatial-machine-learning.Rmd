@@ -34,14 +34,21 @@ library(styler)
 
 # -- spatial k-fold CV
 library(spatialsample)
+
+# -- tidy tools for quantifying how well model fits to a data set
+library(yardstick)
 ```
 
 My own functions to manipulate data:
 
 ```{r}
-source("functions_manipulate_spacetime_data.R")
-source("functions_open_my_spacetime_data.R")
-source("functions_machine_learning.R")
+source("../R/manipulate_spacetime_data.R")
+source("../R/open_data_heatmodel.R")
+source("../R/ml_check_input_data.R")
+source("../R/ml_create_spatial_train_test_sets.R")
+source("../R/ml_create_spatial_cross_validation.R")
+source("../R/ml_define_models.R")
+source("../R/ml_compute_plot_scores_outputs.R")
 ```
 
 #### Open data on a specific period
@@ -174,8 +181,10 @@ df <- rbind(df_train, df_test)
 
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
   geom_tile() +
-  scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
   labs(title = "Test on random observations") +
+  scale_fill_manual(values = c(train = "lightblue", 
+                               test = "tomato4")) +
+  my_theme_paper() +
   theme(
     axis.ticks.y = element_blank(),
     axis.text.y = element_blank()
@@ -190,8 +199,9 @@ df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
   geom_tile() +
-  scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
   labs(title = "Test on random monitors") +
+  scale_fill_manual(values = c(train = "lightblue", 
+                               test = "tomato4")) +
   theme(
     axis.ticks.y = element_blank(),
     axis.text.y = element_blank()
@@ -206,8 +216,9 @@ df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
   geom_tile() +
-  scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
   labs(title = "Test on last day") +
+  scale_fill_manual(values = c(train = "lightblue", 
+                               test = "tomato4")) +
   theme(
     axis.ticks.y = element_blank(),
     axis.text.y = element_blank()
@@ -319,84 +330,32 @@ ggplot(df, aes(x = lon, y = lat, color = set)) +
 #### Prepare spatial k-fold CV
 
 ```{r}
-
 obs_p_sf <- create_sf(obs_p, "epsg:5070")
-# -- uses k-means clustering
+sp_samples <- create_sp_fold(obs_p_sf)
+```
+
+Plots 
+
+```{r}
 cluster_llo <- spatial_clustering_cv(obs_p_sf, v = 10)
 block_llo <- spatial_block_cv(obs_p_sf, v = 10)
-net_llo <- spatial_leave_location_out_cv(obs_p_sf, 
-                                           group = network, 
-                                           v = 6)
-
+net_llo <- spatial_leave_location_out_cv(obs_p_sf,
+  group = network,
+  v = 6
+)
+rnd_llo <- spatial_leave_location_out_cv(obs_p_sf,
+  group = station,
+  v = 10
+)
 autoplot(cluster_llo)
 autoplot(block_llo)
 autoplot(net_llo)
-
-cluster_llo$type <- "cluster"
-block_llo$type <- "block"
-net_llo$type <- "network"
-
-resamples <-
-  dplyr::bind_rows(
-    cluster_llo,
-    block_llo,
-    net_llo
-  )
-
+autoplot(rnd_llo)
 ```
 
+#### Fit cross validation 
 
-```{r}
-library(yardstick)
-
-compute_preds <- function(splits) {
-  mod <- lm(formula_q, data = analysis(splits))
-  holdout <- assessment(splits)
-  tibble::tibble(
-    geometry = holdout$geometry,
-    tmin = holdout$tmin,
-    .pred = predict(mod, holdout)
-  )
-}
-
-cv_res <- resamples %>%
-  mutate(.preds = map(splits, compute_preds))
-
-cv_rmse <- cv_res %>%
-  unnest(.preds) %>%
-  group_by(id, type) %>%
-  rmse(tmin, .pred)
-
-cv_rmse
-
-library(ggplot2)
-
-cv_res %>%
-  unnest(.preds) %>%
-  left_join(cv_rmse, by = c("id", "type")) %>%
-  ggplot(aes(color = .estimate)) +
-  geom_sf(aes(geometry = geometry), alpha = 1) +
-  labs(color = "RMSE") +
-  scale_color_whitebox_c(
-    palette = "muted",
-    labels = scales::label_number(suffix = "ºC"),
-    n.breaks = 8,
-    guide = guide_legend(reverse = TRUE)
-  ) +
-  facet_wrap(vars(type), ncol = 1) +
-  theme(
-			axis.text = element_blank(),
-			plot.caption = element_text(size=10, family="serif"),
-			legend.text = element_text(size=12, family="serif"),
-			legend.title = element_text(size=12, family="serif"),
-			panel.background = element_rect(fill = "white"),
-			panel.grid.major=element_line(colour="grey")
-		)
-
-```
-
-
-#### Formula definition
+Formula definition
 
 ```{r}
 (formula <- as.formula(paste(predicted, " ~ ", 
@@ -405,6 +364,27 @@ cv_res %>%
                              paste(predictors_q,
                                    collapse= "+"))))
 ```
+
+```{r}
+cv_fit <- compute_preds_lm_cv(sp_samples)
+cv_rmse <- compute_rmse_cv(cv_fit, predicted=tmin)
+cv_rmse
+```
+
+Plot RMSE per fold
+
+```{r}
+map_rmse_cv(cv_fit, cv_rmse)
+```
+
+
+```{r}
+map_res_cv(cv_fit, tmin)
+```
+```{r}
+plot_reg_cv(cv_fit, tmin)
+```
+
 
 ## Linear regression
 
@@ -875,7 +855,7 @@ plot(v.emp, vgm.mat, cutoff=cutoff)
 Fit Matern model
 
 ```{r, eval=F}
-v.fit <- fit_variogram(v.emp, vgm.mat, fit_range=F)
+v.fit <- fit.variogram(v.emp, vgm.mat, fit_range=F)
 plot(v.emp, v.fit)
 ```
 
@@ -888,7 +868,7 @@ range <- 20000
 width <- 1000
 v.emp <- variogram(tmin ~ 1, obs.d, cutoff=cutoff, width=width)
 vgm.mat <- vgm(psill=3, "Mat", range=range, nugget=nugget, cutoff=cutoff)
-v.fit <- fit_variogram(v.emp, vgm.mat, fit_range=F)
+v.fit <- fit.variogram(v.emp, vgm.mat, fit_range=F)
 ok <- gstat::krige(tmin ~ 1, obs.d, newdata=pred.d, v.fit)
 ```
 
@@ -930,5 +910,3 @@ m <- ggplot() +
 		)
 m
 ```
-
-#### 

@@ -1,11 +1,4 @@
-.libPaths("/ddn/gs1/home/marquesel/R/x86_64-redhat-linux-gnu-library/4.3/")
-library(terra)
-library(sf)
-library(sftime)
-library(tidyterra)
 library(data.table) # -- for large flat datasets
-library(reshape2)
-library(stringr)
 
 #' Create a new type of spacetime object (stdtobj)
 #'
@@ -17,15 +10,12 @@ create_stdtobj <- function(stdt, crs_stdt) {
   if (class(stdt)[1] != "data.table") {
     stop("stdt is not a data.table.")
   }
-  
   if (!(all(c("lon", "lat", "time") %in% colnames(stdt)))) {
     stop("one of lon, lat, time columns missing or mispelled.")
   }
-  
   if (class(crs_stdt) != "character") {
     stop("crs_stdt is not a character.")
   }
-  
   stdtobj <- list("stdt" = stdt, "crs_stdt" = crs_stdt)
   class(stdtobj) <- c("list", "stdtobj")
   return(stdtobj)
@@ -37,22 +27,17 @@ create_stdtobj <- function(stdt, crs_stdt) {
 #' @returns a boolean to know if obj is from newly created class "stdtobj"
 #' @export
 is_stdtobj <- function(obj) {
-  if (!(identical(class(obj), c("list", "stdtobj")))){
+  if (!(identical(class(obj), c("list", "stdtobj")))) {
     return(FALSE)
-  }
-  else if (!(identical(names(obj), c("stdt", "crs_stdt")))) {
+  } else if (!(identical(names(obj), c("stdt", "crs_stdt")))) {
     return(FALSE)
-  } 
-  else if (!(identical(class(obj$stdt)[1], "data.table"))) {
+  } else if (!(identical(class(obj$stdt)[1], "data.table"))) {
     return(FALSE)
-  }
-  else if (!(all(c("lon", "lat", "time") %in% colnames(obj$stdt)))) {
+  } else if (!(all(c("lon", "lat", "time") %in% colnames(obj$stdt)))) {
     return(FALSE)
-  }
-  else if (!(identical(class(obj$crs_stdt)[1], "character"))) {
+  } else if (!(identical(class(obj$crs_stdt)[1], "character"))) {
     return(FALSE)
-  }
-  else {
+  } else {
     return(TRUE)
   }
 }
@@ -84,60 +69,56 @@ create_starrayobj <- function(starray, crs_starray) {
 #' @returns a boolean to know if obj is from newly created class "starrayobj"
 #' @export
 is_starrayobj <- function(obj) {
-  if (!(identical(class(obj), c("list", "starrayobj")))){
+  if (!(identical(class(obj), c("list", "starrayobj")))) {
     return(FALSE)
-  }
-  else if (!(identical(names(obj), c("starray", "crs_starray")))) {
+  } else if (!(identical(names(obj), c("starray", "crs_starray")))) {
     return(FALSE)
-  } 
-  else if (!(identical(class(obj$starray), "array"))) {
+  } else if (!(identical(class(obj$starray), "array"))) {
     return(FALSE)
-  }
-  else if (!(identical(c("lon", "lat", "time", "variable"),
-                       names(dim(obj$starray))))) {
+  } else if (!(identical(
+    c("lon", "lat", "time", "variable"),
+    names(dim(obj$starray))
+  ))) {
     return(FALSE)
-  }
-  else if (!(identical(class(obj$crs_starray)[1], "character"))) {
+  } else if (!(identical(class(obj$crs_starray)[1], "character"))) {
     return(FALSE)
-  }
-  else {
+  } else {
     return(TRUE)
   }
 }
 
 #' Convert stdtobj to starrayobj
 #'
-#' @param stdtobj A stdt object: data.table object with columns 
-#' "lat", "lon", "time" + a set of covariates and associated crs 
+#' @param stdtobj A stdt object: data.table object with columns
+#' "lat", "lon", "time" + a set of covariates and associated crs
 #' @returns a starrayobj object: 4D array with 4 dimensions corresponding to
 #' lat, lon, time, variable and associated crs
 #' To plot the timeserie: plot(starray[i,j,,l])
 #' To map one variable at one time: image(starray[,,k,l])
 #' @export
 convert_stdt_starray <- function(stdtobj) {
-  
   if (!is_stdtobj(stdtobj)) {
     stop("stdtobj is not a stdt object.")
   }
-  
   stdt <- stdtobj$stdt
-  stdt_complete <- expand_grid(lon = unique(stdt$lon), 
-                               lat = unique(stdt$lat), 
-                               time = unique(stdt$time))
-  stdt_complete <- merge(stdt, stdt_complete,
-                         by = c("lon", "lat", "time"),
-                         all.y = T
+  stdt_complete <- tidyr::expand_grid(
+    lon = unique(stdt$lon),
+    lat = unique(stdt$lat),
+    time = unique(stdt$time)
   )
-  
+  stdt_complete <- merge(stdt,
+    stdt_complete,
+    by = c("lon", "lat", "time"),
+    all.y = TRUE
+  )
   # reshape stdt from wide to long format
   stdt_long <- maditr::melt(stdt_complete, id.vars = c("lon", "lat", "time"))
   # sort columns in this order: variable -> time -> lat -> lon
-  setorderv(stdt_long, c("variable", "time", "lat", "lon"))
-  
+  data.table::setorderv(stdt_long, c("variable", "time", "lat", "lon"))
   dimnames <- lapply(stdt_long[, 1:4], unique)
   starray <- array(stdt_long$value,
-                   dim = lengths(dimnames),
-                   dimnames = dimnames
+    dim = lengths(dimnames),
+    dimnames = dimnames
   )
   starrayobj <- create_starrayobj(starray, stdtobj$crs_stdt)
   return(starrayobj)
@@ -146,7 +127,7 @@ convert_stdt_starray <- function(stdtobj) {
 
 #' Convert starrayobj to stdtobj
 #'
-#' @param starrayobj A starrayobj 
+#' @param starrayobj A starrayobj
 #' @returns a stdtobj
 #' @export
 convert_starray_stdt <- function(starrayobj) {
@@ -156,33 +137,30 @@ convert_starray_stdt <- function(starrayobj) {
   starray <- starrayobj$starray
   long_starray <- reshape2::melt(starray)
   wide_starray <- reshape(long_starray,
-                          idvar = c("lon", "lat", "time"),
-                          timevar = "variable",
-                          direction = "wide"
+    idvar = c("lon", "lat", "time"),
+    timevar = "variable",
+    direction = "wide"
   )
-  colnames(wide_starray) <- str_replace(
+  colnames(wide_starray) <- stringr::str_replace(
     colnames(wide_starray),
     "value.",
     ""
   )
-  stdt <- as.data.table(wide_starray)
-  # stdt <- na.omit(stdt)
+  stdt <- data.table::as.data.table(wide_starray)
   stdtobj <- create_stdtobj(stdt, starrayobj$crs_starray)
   return(stdtobj)
 }
 
 
-#' Convert any kind of st object (sftime, SpatVector or SpatRasterDataset) 
+#' Convert any kind of st object (sftime, SpatVector or SpatRasterDataset)
 #' to stdtobj
 #'
-#' @param stobj sftime, SpatVector or SpatRasterDataset following some standard 
+#' @param stobj sftime, SpatVector or SpatRasterDataset following some standard
 #' in columns naming
-#' @returns a stdtobj 
+#' @returns a stdtobj
 #' @export
 convert_stobj_to_stdt <- function(stobj) {
-  
   format <- class(stobj)[[1]]
-  
   if (format == "sf" || format == "sftime") {
     if (any(!(c("geometry", "time") %in% colnames(stobj)))) {
       stop("stobj does not contain geometry and time columns")
@@ -203,25 +181,24 @@ convert_stobj_to_stdt <- function(stobj) {
     stdt <- data.table::as.data.table(stdf)
   } else if (format == "SpatRasterDataset") {
     crs_dt <- crs(stobj)
-    stdf <- as.data.frame(stobj[1], xy = T)
+    stdf <- as.data.frame(stobj[1], xy = TRUE)
     colnames(stdf)[1] <- "lon"
     colnames(stdf)[2] <- "lat"
     # -- tranform from wide to long format
-    stdf <- stdf %>% pivot_longer(
+    stdf <- stdf %>% tidyr::pivot_longer(
       cols = 3:ncol(stdf),
       names_to = "time",
       values_to = names(stobj)[1]
     )
-    
     for (var in names(stobj)[2:length(names(stobj))]) {
       # test that the ts is identical to the ts of the 1st variable
       if (!(identical(names(stobj[var]), names(stobj[1])))) {
-        stop("Error in SpatRastDataset: timeserie is different for at least 
+        stop("Error in SpatRastDataset: timeserie is different for at least
              2 variables - or not ordered for one of these.")
       }
-      df_var <- as.data.frame(stobj[var], xy = T)
+      df_var <- as.data.frame(stobj[var], xy = TRUE)
       # -- tranform from wide to long format
-      df_var <- df_var %>% pivot_longer(
+      df_var <- df_var %>% tidyr::pivot_longer(
         cols = 3:ncol(df_var),
         names_to = "time",
         values_to = var
@@ -232,33 +209,33 @@ convert_stobj_to_stdt <- function(stobj) {
   } else {
     stop("stobj class not accepted")
   }
-  
   stdtobj <- create_stdtobj(stdt, crs_dt)
   return(stdtobj)
 }
 
 
-#' Convert a stdtobj to SpatVector 
-#' 
+#' Convert a stdtobj to SpatVector
+#'
 #' @param stdtobj A stdtobj
-#' @returns a SpatVector 
+#' @returns a SpatVector
 #' @export
 convert_stdt_spatvect <- function(stdtobj) {
   if (!is_stdtobj(stdtobj)) {
     stop("stdtobj is not an stdt object")
   }
-  vect_obj <- vect(stdtobj$stdt, 
-                   geom = c("lon", "lat"), 
-                   crs = stdtobj$crs_stdt, 
-                   keepgeom = FALSE)
+  vect_obj <- vect(stdtobj$stdt,
+    geom = c("lon", "lat"),
+    crs = stdtobj$crs_stdt,
+    keepgeom = FALSE
+  )
   return(vect_obj)
 }
 
 
 #' Convert a stdtobj to sftime
-#' 
+#'
 #' @param stdtobj A stdtobj
-#' @returns a sftime object 
+#' @returns a sftime object
 #' @export
 convert_stdt_sftime <- function(stdtobj) {
   if (!is_stdtobj(stdtobj)) {
@@ -267,18 +244,18 @@ convert_stdt_sftime <- function(stdtobj) {
   stdt <- stdtobj$stdt
   stdt$time <- as.Date(stdt$time)
   sftime_obj <- sftime::st_as_sftime(stdt,
-                                     coords = c("lon", "lat"),
-                                     time_column_name = "time",
-                                     crs = stdtobj$crs_stdt
+    coords = c("lon", "lat"),
+    time_column_name = "time",
+    crs = stdtobj$crs_stdt
   )
   return(sftime_obj)
 }
 
 
-#' Convert a stdtobj to SpatRasterDataset 
-#' 
+#' Convert a stdtobj to SpatRasterDataset
+#'
 #' @param stdtobj A stdtobj
-#' @returns a SpatRasterDataset with each raster corresponding to one variable 
+#' @returns a SpatRasterDataset with each raster corresponding to one variable
 #' (layers are the time serie)
 #' @export
 convert_stdt_spatrastdataset <- function(stdtobj) {
@@ -287,19 +264,23 @@ convert_stdt_spatrastdataset <- function(stdtobj) {
   }
   df <- as.data.frame(stdtobj$stdt)
   col <- colnames(df)
-  variables <- col[! (col %in% c("lon", "lat", "time"))]
+  variables <- col[!(col %in% c("lon", "lat", "time"))]
   rast_list <- list()
   for (var in variables) {
-    newdf <- reshape(df[, c("lon", "lat", "time", var)], 
-                     idvar = c("lon", "lat"), 
-                     timevar = "time", 
-                     direction = "wide")
-    colnames(newdf) <- str_replace(
+    newdf <- reshape(df[, c("lon", "lat", "time", var)],
+      idvar = c("lon", "lat"),
+      timevar = "time",
+      direction = "wide"
+    )
+    colnames(newdf) <- stringr::str_replace(
       colnames(newdf),
       paste0(var, "."),
       ""
     )
-    var_rast <- as_spatraster(newdf, xycols=c(1,2), crs = stdtobj$crs_stdt)
+    var_rast <- terra::as_spatraster(newdf,
+      xycols = c(1, 2),
+      crs = stdtobj$crs_stdt
+    )
     rast_list[[var]] <- var_rast
   }
   rastdt_obj <- terra::sds(rast_list)
@@ -324,11 +305,10 @@ create_sf <- function(datatable, crs) {
   if (!("lat" %in% colnames(datatable))) {
     stop("datatable does not contain lat column")
   }
-  
-  data_sf <- st_as_sf(datatable,
-                      coords = c("lon", "lat"),
-                      remove = F,
-                      crs = crs
+  data_sf <- sf::st_as_sf(datatable,
+    coords = c("lon", "lat"),
+    remove = FALSE,
+    crs = crs
   )
   return(data_sf)
 }
@@ -355,13 +335,12 @@ create_sftime <- function(datatable, crs) {
   if (!("date" %in% colnames(datatable))) {
     stop("datatable does not contain date column")
   }
-  
   datatable$date <- as.Date(datatable$date)
-  data_sft <- st_as_sftime(datatable,
-                           coords = c("lon", "lat"),
-                           remove = F,
-                           crs = crs,
-                           time_column_name = "date"
+  data_sft <- sf::st_as_sftime(datatable,
+    coords = c("lon", "lat"),
+    remove = FALSE,
+    crs = crs,
+    time_column_name = "date"
   )
   return(data_sft = data_sft)
 }
@@ -387,18 +366,17 @@ project_dt <- function(datatable, crs_ori, crs_dest) {
   if (!("lon" %in% colnames(datatable))) {
     stop("datatable does not contain lon column")
   }
-  
   loc <- unique(datatable[, c("lon", "lat")])
   loc_sf <- create_sf(loc, crs_ori)
-  loc_sf <- st_transform(loc_sf, crs_dest)
+  loc_sf <- sf::st_transform(loc_sf, crs_dest)
   colnames(loc_sf)[colnames(loc_sf) == "lon"] <- "lon_ori"
   colnames(loc_sf)[colnames(loc_sf) == "lat"] <- "lat_ori"
   loc_sf <- loc_sf %>%
     mutate(
-      lon = unlist(map(loc_sf$geometry, 1)),
-      lat = unlist(map(loc_sf$geometry, 2))
+      lon = unlist(purr::map(loc_sf$geometry, 1)),
+      lat = unlist(purr::map(loc_sf$geometry, 2))
     )
-  loc_proj <- as.data.table(loc_sf)
+  loc_proj <- data.table::as.data.table(loc_sf)
   loc_proj <- loc_proj[, geometry := NULL]
   # renaming is only valid within the function
   colnames(datatable)[colnames(datatable) == "lon"] <- "lon_ori"
@@ -410,5 +388,3 @@ project_dt <- function(datatable, crs_ori, crs_dest) {
   )
   return(datatable_proj)
 }
-
-

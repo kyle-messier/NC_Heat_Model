@@ -29,7 +29,7 @@ create_grid <- function(area, imp) {
   grid_5km <- terra::intersect(grid_5km, area)
 
   # -- compute imperviousness mean per 5km x 5km cells
-  imp_mean <- zonal(imp, grid_5km, fun = "mean", as.raster = T)
+  imp_mean <- zonal(imp, grid_5km, fun = "mean", as.raster = TRUE)
 
   # -- create urban and rural masks
   urb_mask <- ifel(imp_mean > 5, 1, NA)
@@ -49,22 +49,21 @@ create_grid <- function(area, imp) {
 
   # CREATE GRID WITH HIGHER RESOLUTION IN URBAN AREAS
 
-  urb_grid_df <- centroids(urb_grid, inside = T)
-  rur_grid_df <- centroids(rur_grid, inside = T)
+  urb_grid_df <- centroids(urb_grid, inside = TRUE)
+  rur_grid_df <- centroids(rur_grid, inside = TRUE)
   urb_grid_df$geo <- "urb"
   rur_grid_df$geo <- "rur"
 
   grid_points <- rbind(urb_grid_df, rur_grid_df)
-  # grid_points <- project(grid_points, "epsg:5070")
 
   # -- keep only the geo covariate
-  grid_points <- grid_points %>% select(geo)
+  grid_points <- grid_points %>% select("geo")
 
   # SAVE GRID POINTS AS VECTOR
 
   writeVector(grid_points,
     "../input/prediction_grid_nad83_empty.shp",
-    overwrite = T
+    overwrite = TRUE
   )
   return(grid_points)
 }

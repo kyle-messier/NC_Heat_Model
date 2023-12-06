@@ -1,7 +1,4 @@
-if (!require(testthat)) install.packages("testthat")
 library(testthat)
-
-source("../R/add_covariates.R")
 
 test_that("Check add_imp works", {
   # -- 1st example: sp_vect erroneous coordinates produce NAs
@@ -63,7 +60,10 @@ test_that("Check add_build_fp works", {
   # -- 2nd example: build_fp file does not exist
   sp_vect <- vect("../input/prediction_grid_nad83_empty.shp")
   sp_vect <- sp_vect[600:700]
-  expect_error(add_build_fp("blablabla", sp_vect), "build_fp_path does not exist")
+  expect_error(
+    add_build_fp("blablabla", sp_vect),
+    "build_fp_path does not exist"
+  )
 
   # -- 3rd example: everything works properly
   expect_no_error(add_build_fp(sp_vect = sp_vect))
@@ -71,44 +71,58 @@ test_that("Check add_build_fp works", {
 })
 
 test_that("Check add_nc_county works", {
-  
   # -- 1st example: datatable is not a data.table
   crs <- "epsg:5070"
-  dt_eg <- data.frame("lon" = c(1520000, 1650000),
-                      "lat" = c(1580000, 1550000))
+  dt_eg <- data.frame(
+    "lon" = c(1520000, 1650000),
+    "lat" = c(1580000, 1550000)
+  )
   expect_error(add_nc_county(dt_eg, crs), "datatable is not a data.table")
-  
+
   # -- 2nd example: datatable does not contain lon column
   crs <- "epsg:5070"
-  dt_eg <- data.table("longitude" = c(1520000, 1650000),
-                      "lat" = c(1580000, 1550000))
-  expect_error(add_nc_county(dt_eg, crs), 
-               "datatable does not contain lon column")
-  
+  dt_eg <- data.table(
+    "longitude" = c(1520000, 1650000),
+    "lat" = c(1580000, 1550000)
+  )
+  expect_error(
+    add_nc_county(dt_eg, crs),
+    "datatable does not contain lon column"
+  )
+
   # -- 3rd example: crs is not a character
   crs <- 5070
-  dt_eg <- data.table("lon" = c(1520000, 1650000),
-                      "lat" = c(1580000, 1550000))
+  dt_eg <- data.table(
+    "lon" = c(1520000, 1650000),
+    "lat" = c(1580000, 1550000)
+  )
   expect_error(add_nc_county(dt_eg, crs), "crs is not a character")
-  
-  # -- 4th example: test with same crs 
+
+  # -- 4th example: test with same crs
   crs <- "epsg:5070"
-  dt_eg <- data.table("lon" = c(1520000, 1650000),
-                      "lat" = c(1580000, 1550000))
+  dt_eg <- data.table(
+    "lon" = c(1520000, 1650000),
+    "lat" = c(1580000, 1550000)
+  )
   output <- add_nc_county(dt_eg, crs)
-  expect_contains(colnames(output), 
-                  list("lon", "lat", "county"))
+  expect_contains(
+    colnames(output),
+    list("lon", "lat", "county")
+  )
   expect_equal(output$county, c("Durham", "Pitt"))
-  
-  # -- 5th example: test with different crs 
+
+  # -- 5th example: test with different crs
   crs <- "epsg:4326"
-  dt_eg <- data.table("lon" = c(-78.895, -77.370),
-                      "lat" = c(36.025, 35.599))
+  dt_eg <- data.table(
+    "lon" = c(-78.895, -77.370),
+    "lat" = c(36.025, 35.599)
+  )
   output <- add_nc_county(dt_eg, crs)
-  expect_contains(colnames(output), 
-                  list("lon", "lat", "county"))
+  expect_contains(
+    colnames(output),
+    list("lon", "lat", "county")
+  )
   expect_equal(output$county, c("Durham", "Pitt"))
-  
 })
 
 test_that("Check add_build_h works", {
@@ -129,5 +143,5 @@ test_that("Check add_build_h works", {
 
 
 test_that("Check add_tn works", {
-  
+
 })

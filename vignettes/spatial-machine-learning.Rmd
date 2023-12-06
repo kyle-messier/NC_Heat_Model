@@ -6,7 +6,7 @@ date: "2023-09-11"
 
 Libraries
 
-```{r, message=F}
+```{r, message=FALSE}
 library(gstat)
 library(terra)
 library(sf)
@@ -39,6 +39,11 @@ library(spatialsample)
 library(yardstick)
 ```
 
+```{r}
+input_path <- "../input/"
+```
+
+
 My own functions to manipulate data:
 
 ```{r}
@@ -54,8 +59,13 @@ source("../R/ml_compute_plot_scores_outputs.R")
 #### Open data on a specific period
 
 ```{r}
-obs <- fread("../input/NC-monitors-dailysummary-20220601-20220831-space-time-covariates.csv")
-nc_borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp")
+obs <- fread(paste0(input_path,
+                    "NC-monitors-dailysummary-20220601-20220831",
+                    "-space-time-covariates.csv"))
+nc_poly <- paste0("NC_county_boundary/",
+                  "North_Carolina_State_and_County_Boundary_Polygons.shp")
+nc_borders <- vect(paste0(input_path, nc_poly))
+
 
 p <- seq(as.Date("2022-07-20"), as.Date("2022-07-22"), by = "1 day")
 pred_p <- open_pred_period(p)
@@ -182,8 +192,10 @@ df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
   geom_tile() +
   labs(title = "Test on random observations") +
-  scale_fill_manual(values = c(train = "lightblue", 
-                               test = "tomato4")) +
+  scale_fill_manual(values = c(
+    train = "lightblue",
+    test = "tomato4"
+  )) +
   my_theme_paper() +
   theme(
     axis.ticks.y = element_blank(),
@@ -200,8 +212,10 @@ df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
   geom_tile() +
   labs(title = "Test on random monitors") +
-  scale_fill_manual(values = c(train = "lightblue", 
-                               test = "tomato4")) +
+  scale_fill_manual(values = c(
+    train = "lightblue",
+    test = "tomato4"
+  )) +
   theme(
     axis.ticks.y = element_blank(),
     axis.text.y = element_blank()
@@ -217,8 +231,10 @@ df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
   geom_tile() +
   labs(title = "Test on last day") +
-  scale_fill_manual(values = c(train = "lightblue", 
-                               test = "tomato4")) +
+  scale_fill_manual(values = c(
+    train = "lightblue",
+    test = "tomato4"
+  )) +
   theme(
     axis.ticks.y = element_blank(),
     axis.text.y = element_blank()
@@ -274,16 +290,17 @@ df_train <- train_pie
 df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
-  geom_tile()+
-  scale_fill_manual(values=c("train"="lightblue", test="tomato4"))+
-  labs(title="Test on Piedmont counties")+
-  theme(axis.ticks.y = element_blank(),
-        axis.text.y = element_blank()
-    )  
+  geom_tile() +
+  scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on Piedmont counties") +
+  theme(
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank()
+  )
 ggplot(df, aes(x = lon, y = lat, color = set)) +
-  geom_point()+
-  scale_color_manual(values=c("train"="lightblue", test="tomato4"))+
-  labs(title="Test on Piedmont counties")+
+  geom_point() +
+  scale_color_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on Piedmont counties") +
   coord_equal()
 ```
 
@@ -294,16 +311,17 @@ df_train <- train_pla
 df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
-  geom_tile()+
-  scale_fill_manual(values=c("train"="lightblue", test="tomato4"))+
-  labs(title="Test on plain counties")+
-  theme(axis.ticks.y = element_blank(),
-        axis.text.y = element_blank()
-    )  
+  geom_tile() +
+  scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on plain counties") +
+  theme(
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank()
+  )
 ggplot(df, aes(x = lon, y = lat, color = set)) +
-  geom_point()+
-  scale_color_manual(values=c("train"="lightblue", test="tomato4"))+
-  labs(title="Test on plain counties")+
+  geom_point() +
+  scale_color_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on plain counties") +
   coord_equal()
 ```
 
@@ -314,16 +332,17 @@ df_train <- train_sea
 df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
-  geom_tile()+
-  scale_fill_manual(values=c("train"="lightblue", test="tomato4"))+
-  labs(title="Test on sea counties")+
-  theme(axis.ticks.y = element_blank(),
-        axis.text.y = element_blank()
-    )  
+  geom_tile() +
+  scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on sea counties") +
+  theme(
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank()
+  )
 ggplot(df, aes(x = lon, y = lat, color = set)) +
-  geom_point()+
-  scale_color_manual(values=c("train"="lightblue", test="tomato4"))+
-  labs(title="Test on sea counties")+
+  geom_point() +
+  scale_color_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on sea counties") +
   coord_equal()
 ```
 
@@ -358,16 +377,21 @@ autoplot(rnd_llo)
 Formula definition
 
 ```{r}
-(formula <- as.formula(paste(predicted, " ~ ", 
-                             paste(predictors, collapse= "+"))))
-(formula_q <- as.formula(paste(predicted, " ~ ", 
-                             paste(predictors_q,
-                                   collapse= "+"))))
+(formula <- as.formula(paste(
+  predicted, " ~ ",
+  paste(predictors, collapse = "+")
+)))
+(formula_q <- as.formula(paste(
+  predicted, " ~ ",
+  paste(predictors_q,
+    collapse = "+"
+  )
+)))
 ```
 
 ```{r}
 cv_fit <- compute_preds_lm_cv(sp_samples)
-cv_rmse <- compute_rmse_cv(cv_fit, predicted=tmin)
+cv_rmse <- compute_rmse_cv(cv_fit, predicted = tmin)
 cv_rmse
 ```
 
@@ -434,9 +458,11 @@ fit_lm <- reg_lm$fitted.values
 plot_res(fit_lm, res_lm, "ANCOVA without covariate selection")
 plot_reg(
   train_rnds$tmin, fit_lm,
-  paste("ANCOVA \n",
-        predicted, " ~ \n", 
-        paste(predictors, collapse= " + "))
+  paste(
+    "ANCOVA \n",
+    predicted, " ~ \n",
+    paste(predictors, collapse = " + ")
+  )
 )
 summary(reg_lm)
 ```
@@ -444,16 +470,16 @@ Regression shrinkage methods
 
 
 ```{r}
-reg_lasso.quanti <- glmnet(
+reg_lasso_quanti <- glmnet(
   y = as.data.frame(train_rnds)[, predicted],
   x = as.matrix(
     as.data.frame(train_rnds)[, predictors_q]
   )
 )
-plot(reg_lasso.quanti, xvar = "lambda", label = TRUE)
+plot(reg_lasso_quanti, xvar = "lambda", label = TRUE)
 legend(
   x = -4, y = 0.2,
-  legend = paste(1:length(predictors_q), " - ", predictors_q),
+  legend = paste(seq_along(predictors_q), " - ", predictors_q),
   cex = .6
 )
 ```
@@ -471,7 +497,7 @@ options(repr.plot.width = 12, repr.plot.height = 10)
 plot(reg_lasso, xvar = "lambda", label = TRUE)
 legend(
   x = -1, y = -0.1,
-  legend = paste(1:ncol(x_mat), " - ", colnames(x_mat)),
+  legend = paste(seq_len(ncol(x_mat)), " - ", colnames(x_mat)),
   cex = .4
 )
 ```
@@ -481,8 +507,10 @@ Optimum for log(lambda) : two covariates (TN12am and dem)
 Classical cross validation 
 
 ```{r}
-reg_lasso_cv <- cv.glmnet(y = as.data.frame(train_rnds)[,predicted], 
-                          x = x_mat)
+reg_lasso_cv <- cv.glmnet(
+  y = as.data.frame(train_rnds)[, predicted],
+  x = x_mat
+)
 plot(reg_lasso_cv)
 ```
 
@@ -492,19 +520,27 @@ coef(reg_lasso_cv, s = "lambda.1se")
 ```
 
 ```{r}
-fit_lasso_1se <- stats::predict(reg_lasso_cv, s = "lambda.1se", 
-                         newx = x_mat)
-res_lasso_1se <- data.frame(train_rnds)[, predicted] - fit_lasso_1se 
+fit_lasso_1se <- stats::predict(reg_lasso_cv,
+  s = "lambda.1se",
+  newx = x_mat
+)
+res_lasso_1se <- data.frame(train_rnds)[, predicted] - fit_lasso_1se
 
 # Graphe des résidus
 plot_res(fit_lm, res_lm, "Linéaire, sans sélection")
-plot_res(fit_lasso_1se, res_lasso_1se, 
-         "Linéaire penalité L1 lambda 1se") 
+plot_res(
+  fit_lasso_1se, res_lasso_1se,
+  "Linéaire penalité L1 lambda 1se"
+)
 
-plot_reg(data.frame(train_rnds)[, predicted], fit_lm, 
-         "Linéaire, sans sélection") 
-plot_reg(data.frame(train_rnds)[, predicted], fit_lasso_1se, 
-         "Linéaire penalité L1 lambda 1se") 
+plot_reg(
+  data.frame(train_rnds)[, predicted], fit_lm,
+  "Linéaire, sans sélection"
+)
+plot_reg(
+  data.frame(train_rnds)[, predicted], fit_lasso_1se,
+  "Linéaire penalité L1 lambda 1se"
+)
 ```
 
 ```{r}
@@ -516,119 +552,129 @@ paste("LASSO with lambda.1se:", mean(res_lasso_1se^2))
 (traditional one, see to implement spatial one)
 
 ```{r}
-V <- 10
-nV <- floor(nrow(train_rnds) / V)
-S <- sample(1:nrow(train_rnds), replace = FALSE)
-error_CV <- c()
-for (v in 1:V) {
-  train_rnds_learn <- train_rnds[-c(S[(nV * (v - 1)):(nV * v)]), ]
-  train_rnds_valid <- train_rnds[c(S[(nV * (v - 1)):(nV * v)]), ]
-  fit_valid <- predict(aov(formula, data = train_rnds_learn), 
-                 newdata = train_rnds_valid)
+v <- 10
+nv <- floor(nrow(train_rnds) / v)
+s <- sample(seq_len(nrow(train_rnds)), replace = FALSE)
+error_cv <- c()
+for (v in 1:v) {
+  train_rnds_learn <- train_rnds[-c(s[(nv * (v - 1)):(nv * v)]), ]
+  train_rnds_valid <- train_rnds[c(s[(nv * (v - 1)):(nv * v)]), ]
+  fit_valid <- predict(aov(formula, data = train_rnds_learn),
+    newdata = train_rnds_valid
+  )
   y_valid <- data.frame(train_rnds_valid)[, predicted]
-  error_CV <- c(error_CV, mean((y_valid - fit_valid)^2))
+  error_cv <- c(error_cv, mean((y_valid - fit_valid)^2))
 }
-mean(error_CV)
+mean(error_cv)
 print(reg_lasso_cv)
 ```
 
 Quadratic model (AIC criteria model selection)
 
 ```{r}
-reg_glm <- glm(tmin ~ .^2, 
-               data = train_rnds[, c("tmin", "tcc", "imp", 
-                                                 "build.fp", "dem", "TN12am")])
+reg_glm <- glm(tmin ~ .^2,
+  data = train_rnds[, c(
+    "tmin", "tcc", "imp",
+    "build.fp", "dem", "TN12am"
+  )]
+)
 
 
 reg_glm_step <- step(reg_glm, direction = "backward")
-anova(reg_glm_step, test_rnds = "F")   
+anova(reg_glm_step, test_rnds = "FALSE")
 ```
 
 LASSO (L1 shrinkage)
 
 ```{r}
-x_mat2 <- model.matrix(tmin ~ .^2 - 1, 
-                       data = train_rnds[, c("tmin", "tcc", "imp",
-                                             "build.fp", "dem", "TN12am")])
+x_mat2 <- model.matrix(tmin ~ .^2 - 1,
+  data = train_rnds[, c(
+    "tmin", "tcc", "imp",
+    "build.fp", "dem", "TN12am"
+  )]
+)
 reg_lasso2 <- glmnet(y = train_rnds$tmin, x = x_mat2)
 reg_lasso2_cv <- cv.glmnet(y = train_rnds$tmin, x = x_mat2)
 coef(reg_lasso2_cv, s = "lambda.1se")
 ```
 
 ```{r}
-fit_glm <- reg_glm_step$fitted.values 
+fit_glm <- reg_glm_step$fitted.values
 res_glm <- reg_glm_step$residuals
 fit_lasso2_cv <- predict(reg_lasso2_cv, s = "lambda.min", newx = x_mat2)
 res_lasso2_cv <- train_rnds$tmin - fit_lasso2_cv
 
 # Graphe des résidus
-g1<-gplot_res(fit_lm, res_lm, "linéaire")
-g2<-gplot_res(fit_lasso_1se, res_lasso_1se, "linéaire, pénalité L1")
-g3<-gplot_res(fit_glm, res_glm, "quadratique, backward AIC")
-g4<-gplot_res(fit_lasso2_cv, res_lasso2_cv, "quadratique, pénalité L1")
-grid.arrange(g1,g2,g3,g4,ncol=2,nrow=2)
+g1 <- gplot_res(fit_lm, res_lm, "linéaire")
+g2 <- gplot_res(fit_lasso_1se, res_lasso_1se, "linéaire, pénalité L1")
+g3 <- gplot_res(fit_glm, res_glm, "quadratique, backward AIC")
+g4 <- gplot_res(fit_lasso2_cv, res_lasso2_cv, "quadratique, pénalité L1")
+grid.arrange(g1, g2, g3, g4, ncol = 2, nrow = 2)
 ```
 
 test_rnds sample predictions
 
 ```{r}
-test_rnds$glm.pred <- predict(reg_glm_step, newdata = test_rnds)
-test_rnds$glm.res <- test_rnds$glm.pred - test_rnds$tmin
-sum((test_rnds$glm.res)^2) / nrow(test_rnds)
+test_rnds$glm_pred <- predict(reg_glm_step, newdata = test_rnds)
+test_rnds$glm_res <- test_rnds$glm_pred - test_rnds$tmin
+sum((test_rnds$glm_res)^2) / nrow(test_rnds)
 ```
 
 Grid prediction
 
 ```{r}
-pred_p$glm.pred <- predict(reg_glm_step, newdata = pred_p)
+pred_p$glm_pred <- predict(reg_glm_step, newdata = pred_p)
 ```
 
 Select and plot a specific date
 
 ```{r}
 d <- "2022-07-20"
-plot.pred <- pred_p[pred_p$date==d,] 
-plot.pred <- st_as_sf(plot.pred, 
-                    coords=c("lon", "lat"),
-                    remove=F,
-                    crs=4326)
-plot.pred <- vect(plot.pred)
+plot_pred <- pred_p[pred_p$date == d, ]
+plot_pred <- st_as_sf(plot_pred,
+  coords = c("lon", "lat"),
+  remove = FALSE,
+  crs = 4326
+)
+plot_pred <- vect(plot_pred)
 
 m <- ggplot() +
-  geom_spatvector(data = plot.pred, aes(color=glm.pred), size=.1) +
-  #geom_sf(data = obs_p, aes(geometry=geometry, color=tmin)) +
-  geom_sf(data = st_as_sf(nc_borders), aes(geometry=geometry), 
-               colour = "grey", linewidth=.3, fill = NA) +
+  geom_spatvector(data = plot_pred, aes(color = glm_pred), size = .1) +
+  # geom_sf(data = obs_p, aes(geometry=geometry, color=tmin)) +
+  geom_sf(
+    data = st_as_sf(nc_borders), aes(geometry = geometry),
+    colour = "grey", linewidth = .3, fill = NA
+  ) +
   scale_color_whitebox_c(
-      palette = "muted",
-      labels = scales::label_number(suffix = "°C"),
-      n.breaks = 12,
-      guide = guide_legend(reverse = TRUE)
+    palette = "muted",
+    labels = scales::label_number(suffix = "°C"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
   ) +
   labs(
     fill = "",
     title = "Generalized Linear Model"
   ) +
   annotation_scale(
-    location="bl", pad_x = unit(1, "cm"), 
-		pad_y = unit(1, "cm"), 
-		height = unit(0.30, "cm"), 
-		text_cex = 1
-	) +
-	annotation_north_arrow(
-	  location = "br", 
-	  which_north = "true", 
-		pad_x = unit(0.2, "cm"), 
-		pad_y = unit(0.2, "cm")
-	) +
-	theme(
-			axis.text = element_text(size=12, family="serif"),
-			plot_caption = element_text(size=10, family="serif"),
-			legend.text = element_text(size=12, family="serif"),
-			legend.title = element_text(size=12, family="serif"),
-			panel.background = element_rect(fill = "white"),
-			panel.grid.major=element_line(colour="grey")
-		)
+    location = "bl", pad_x = unit(1, "cm"),
+    pad_y = unit(1, "cm"),
+    height = unit(0.30, "cm"),
+    text_cex = 1
+  ) +
+  annotation_north_arrow(
+    location = "br",
+    which_north = "true",
+    pad_x = unit(0.2, "cm"),
+    pad_y = unit(0.2, "cm")
+  ) +
+  theme(
+    axis.text = element_text(size = 12, family = "serif"),
+    plot_caption = element_text(size = 10, family = "serif"),
+    legend.text = element_text(size = 12, family = "serif"),
+    legend.title = element_text(size = 12, family = "serif"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(colour = "grey")
+  )
 m
 ```
 
@@ -637,123 +683,129 @@ m
 Results with LASSO regression on quadratic covariates
 
 ```{r}
-x_mat2 <- model.matrix(tmin ~ .^2 - 1, 
-                       data = train_rnds[, c("tmin", "tcc", "imp", 
-                                             "build.fp", "dem", "TN12am")])
-x_mat2.test <- model.matrix(tmin ~ .^2 - 1, 
-                            data = test_rnds[, c("tmin", "tcc", "imp", 
-                                                 "build.fp", "dem", "TN12am")])
+x_mat2 <- model.matrix(tmin ~ .^2 - 1,
+  data = train_rnds[, c(
+    "tmin", "tcc", "imp",
+    "build.fp", "dem", "TN12am"
+  )]
+)
+x_mat2_test <- model.matrix(tmin ~ .^2 - 1,
+  data = test_rnds[, c(
+    "tmin", "tcc", "imp",
+    "build.fp", "dem", "TN12am"
+  )]
+)
 
 reg_lasso2 <- glmnet(y = train_rnds$tmin, x = x_mat2)
-test_rnds$lasso2.pred <- predict(reg_lasso2, newx = x_mat2.test, s = 0.1)
+test_rnds$lasso2_pred <- predict(reg_lasso2, newx = x_mat2_test, s = 0.1)
 
-test_rnds$lasso2.res <- test_rnds$lasso2.pred - test_rnds$tmin
-sum((test_rnds$lasso2.res)^2) / nrow(test_rnds)
-pred_p$lasso2.rnds.pred <- predict(reg_lasso2, newdata = pred_p)
+test_rnds$lasso2_res <- test_rnds$lasso2_pred - test_rnds$tmin
+sum((test_rnds$lasso2_res)^2) / nrow(test_rnds)
+pred_p$lasso2.rnds_pred <- predict(reg_lasso2, newdata = pred_p)
 ```
 
 ## Random Forest
 
 ```{r}
-rf.reg <- randomForest(
+rf_reg <- randomForest(
   tmin ~ tcc + imp + build.fp + build.h + dem + TN12am,
   data = train_rnds,
   xtest_rnds = test_rnds[, .(tcc, imp, build.fp, build.h, dem, TN12am)],
   ytest_rnds = test_rnds$tmin,
   ntree = 500, mtry = 2, do.trace = 50, importance = TRUE
 )
-attributes(rf.reg)
-rf.reg$mtry
+attributes(rf_reg)
+rf_reg$mtry
 ```
 
 ```{r}
-fit_rf=rf.reg$predicted
-res_rf=fit_rf-train_rnds$tmin
-gplot_res(fit_rf,res_rf,titre="")
+fit_rf <- rf_reg$predicted
+res_rf <- fit_rf - train_rnds$tmin
+gplot_res(fit_rf, res_rf, titre = "")
 ```
 
 Variable importance
 
 ```{r}
-rf.reg$importance
-varImpPlot(rf.reg)
+rf_reg$importance
+varImpPlot(rf_reg)
 library(ggRandomForests)
-plot(gg_vimp(rf.reg))
+plot(gg_vimp(rf_reg))
 ```
 
 On test_rnds sample
 
 ```{r}
-test_rnds$rf.pred <- predict(rf.reg, newdata = test_rnds)
-#test_rnds$rf.pred <- rf.reg$test_rnds$predicted
-test_rnds$rf.res <- test_rnds$rf.pred - test_rnds$tmin
-sum((test_rnds$rf.res)^2)/nrow(test_rnds)
+test_rnds$rf_pred <- predict(rf_reg, newdata = test_rnds)
+test_rnds$rf_res <- test_rnds$rf_pred - test_rnds$tmin
+sum((test_rnds$rf_res)^2) / nrow(test_rnds)
 ```
 
 Prediction on the grid
 
 ```{r}
-pred.rf.grid <- predict(object=rf.reg, newdata = pred_p)
-pred_p$rf.pred <- pred.rf.grid 
+pred_rf_grid <- predict(object = rf_reg, newdata = pred_p)
+pred_p$rf_pred <- pred_rf_grid
 ```
 
 ```{r}
 d <- "2022-07-20"
-plot.pred <- pred_p[pred_p$date==d,] 
-plot.pred <- st_as_sf(plot.pred, 
-                    coords=c("lon", "lat"),
-                    remove=F,
-                    crs=4326)
-plot.pred <- vect(plot.pred)
+plot_pred <- pred_p[pred_p$date == d, ]
+plot_pred <- st_as_sf(plot_pred,
+  coords = c("lon", "lat"),
+  remove = FALSE,
+  crs = 4326
+)
+plot_pred <- vect(plot_pred)
 
 m <- ggplot() +
-  geom_spatvector(data = plot.pred, aes(color=rf.pred), size=.1) +
-  #geom_sf(data = obs_p, aes(geometry=geometry, color=tmin)) +
-  geom_sf(data = st_as_sf(nc_borders), aes(geometry=geometry), 
-               colour = "grey", linewidth=.3, fill = NA) +
+  geom_spatvector(data = plot_pred, aes(color = rf_pred), size = .1) +
+  # geom_sf(data = obs_p, aes(geometry=geometry, color=tmin)) +
+  geom_sf(
+    data = st_as_sf(nc_borders), aes(geometry = geometry),
+    colour = "grey", linewidth = .3, fill = NA
+  ) +
   scale_color_whitebox_c(
-      palette = "muted",
-      labels = scales::label_number(suffix = "°C"),
-      n.breaks = 12,
-      guide = guide_legend(reverse = TRUE)
+    palette = "muted",
+    labels = scales::label_number(suffix = "°C"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
   ) +
   labs(
     fill = "",
     title = "Generalized Linear Model"
   ) +
   annotation_scale(
-    location="bl", pad_x = unit(1, "cm"), 
-		pad_y = unit(1, "cm"), 
-		height = unit(0.30, "cm"), 
-		text_cex = 1
-	) +
-	annotation_north_arrow(
-	  location = "br", 
-	  which_north = "true", 
-		pad_x = unit(0.2, "cm"), 
-		pad_y = unit(0.2, "cm")
-	) +
-	theme(
-			axis.text = element_text(size=12, family="serif"),
-			plot_caption = element_text(size=10, family="serif"),
-			legend.text = element_text(size=12, family="serif"),
-			legend.title = element_text(size=12, family="serif"),
-			panel.background = element_rect(fill = "white"),
-			panel.grid.major=element_line(colour="grey")
-		)
+    location = "bl", pad_x = unit(1, "cm"),
+    pad_y = unit(1, "cm"),
+    height = unit(0.30, "cm"),
+    text_cex = 1
+  ) +
+  annotation_north_arrow(
+    location = "br",
+    which_north = "true",
+    pad_x = unit(0.2, "cm"),
+    pad_y = unit(0.2, "cm")
+  ) +
+  theme(
+    axis.text = element_text(size = 12, family = "serif"),
+    plot_caption = element_text(size = 10, family = "serif"),
+    legend.text = element_text(size = 12, family = "serif"),
+    legend.title = element_text(size = 12, family = "serif"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(colour = "grey")
+  )
 m
 ```
 
 #### Gradient Boosting
 
 ```{r}
-
 ```
 
 #### Neural networks
 
 ```{r}
-
 ```
 
 ## Kriging on residuals
@@ -770,11 +822,13 @@ Tranform test_rnds set to a STFDF object from spacetime library
 
 ```{r}
 library(spacetime)
-test_rnds <- test_rnds[, ":="(date=as.Date(date)),]
-test_rnds_st <- stConstruct(as.data.frame(test_rnds), space=c("lon","lat"), time="date", 
-                       SpatialObj=SpatialPoints(test_rnds[,c("lon","lat")]), 
-                       crs=CRS(crs_nad83))
-test_rnds_st <- as(test_rnds_st,"STFDF")
+test_rnds <- test_rnds[, ":="(date = as.Date(date)), ]
+test_rnds_st <- stConstruct(as.data.frame(test_rnds),
+  space = c("lon", "lat"), time = "date",
+  SpatialObj = SpatialPoints(test_rnds[, c("lon", "lat")]),
+  crs = CRS(crs_nad83)
+)
+test_rnds_st <- as(test_rnds_st, "STFDF")
 ```
 
 Plot residulals for one date
@@ -782,140 +836,150 @@ Plot residulals for one date
 Plot residuals evolution per one location
 
 ```{r, eval=FALSE}
-ggplot(test_rnds[which(test_rnds$station %in% unique(test_rnds$station)[1:10]),])+
-  geom_line(aes(x=date, y=glm.res, color=station, group=station))+
-  geom_point(aes(x=date, y=glm.res, color=station, group=station))+
-  theme(legend.position="none")
+ggplot(test_rnds[which(test_rnds$station %in% unique(test_rnds$station)[1:10]),
+       ]) +
+  geom_line(aes(x = date, y = glm_res, color = station, group = station)) +
+  geom_point(aes(x = date, y = glm_res, color = station, group = station)) +
+  theme(legend.position = "none")
 
 
-ggplot(test_rnds[which(test_rnds$network=="ECONET"),])+
-  geom_line(aes(x=date, y=glm.res, color=station, group=station))+
-  geom_point(aes(x=date, y=glm.res, color=station, group=station))+
-  ylim(-5,5)+
-  theme(legend.position="none")
+ggplot(test_rnds[which(test_rnds$network == "ECONET"), ]) +
+  geom_line(aes(x = date, y = glm_res, color = station, group = station)) +
+  geom_point(aes(x = date, y = glm_res, color = station, group = station)) +
+  ylim(-5, 5) +
+  theme(legend.position = "none")
 
-ggplot(test_rnds[which(test_rnds$network=="RAWS"),])+
-  geom_line(aes(x=date, y=glm.res, color=station, group=station))+
-  geom_point(aes(x=date, y=glm.res, color=station, group=station))+
-  ylim(-5,5)+
-  theme(legend.position="none")
+ggplot(test_rnds[which(test_rnds$network == "RAWS"), ]) +
+  geom_line(aes(x = date, y = glm_res, color = station, group = station)) +
+  geom_point(aes(x = date, y = glm_res, color = station, group = station)) +
+  ylim(-5, 5) +
+  theme(legend.position = "none")
 
-ggplot(test_rnds[which(test_rnds$network=="WBAN"),])+
-  geom_line(aes(x=date, y=glm.res, color=station, group=station))+
-  geom_point(aes(x=date, y=glm.res, color=station, group=station))+
-  ylim(-5,5)+
-  theme(legend.position="none")
+ggplot(test_rnds[which(test_rnds$network == "WBAN"), ]) +
+  geom_line(aes(x = date, y = glm_res, color = station, group = station)) +
+  geom_point(aes(x = date, y = glm_res, color = station, group = station)) +
+  ylim(-5, 5) +
+  theme(legend.position = "none")
 
-ggplot(test_rnds[which(test_rnds$network=="COOP"),])+
-  geom_line(aes(x=date, y=glm.res, color=station, group=station))+
-  geom_point(aes(x=date, y=glm.res, color=station, group=station))+
-  ylim(-5,5)+
-  theme(legend.position="none")
+ggplot(test_rnds[which(test_rnds$network == "COOP"), ]) +
+  geom_line(aes(x = date, y = glm_res, color = station, group = station)) +
+  geom_point(aes(x = date, y = glm_res, color = station, group = station)) +
+  ylim(-5, 5) +
+  theme(legend.position = "none")
 
-ggplot(test_rnds)+
-  geom_line(aes(x=date, y=glm.res, color=station, group=station))+
-  geom_point(aes(x=date, y=glm.res, color=station, group=station))+
-  facet_wrap(vars(network))+
-  ylim(-5,5)+
-  theme(legend.position="none")
+ggplot(test_rnds) +
+  geom_line(aes(x = date, y = glm_res, color = station, group = station)) +
+  geom_point(aes(x = date, y = glm_res, color = station, group = station)) +
+  facet_wrap(vars(network)) +
+  ylim(-5, 5) +
+  theme(legend.position = "none")
 
 
-ggplot(test_rnds)+
-  geom_point(aes(x=lon, y=lat, color=glm.res))+
-  geom_point(data=train_rnds, aes(x=lon, y=lat), shape=3, color="grey")+
-  facet_wrap(vars(date))+
-  scale_color_steps2(low="blue", mid="white", high="red", limits=c(-3,3), n.breaks=10)
-
+ggplot(test_rnds) +
+  geom_point(aes(x = lon, y = lat, color = glm_res)) +
+  geom_point(data = train_rnds, aes(x = lon, y = lat), shape = 3,
+             color = "grey") +
+  facet_wrap(vars(date)) +
+  scale_color_steps2(low = "blue", mid = "white", high = "red",
+                     limits = c(-3, 3), n.breaks = 10)
 ```
 
 Directions: 0=north, 90=east, 180=south, 270=west
 
-```{r, eval=F}
-cutoff=30000 
-width=1000
-plot(variogram(rf.res ~ 1, data=test_rnds_st, cloud = TRUE, cutoff=cutoff, width=width), tlags=0:3, main="semivariogram cloud residuals RF")
+```{r, eval=FALSE}
+cutoff <- 30000
+width <- 1000
+plot(variogram(rf_res ~ 1, data = test_rnds_st, cloud = TRUE, cutoff = cutoff,
+               width = width), tlags = 0:3,
+     main = "semivariogram cloud residuals RF")
 
 
-plot(variogram(glm.res ~ 1, test_rnds_st, cloud = TRUE, cutoff=10000, width=width), main="semivariogram cloud residuals glm")
+plot(variogram(glm_res ~ 1, test_rnds_st, cloud = TRUE, cutoff = 10000,
+               width = width), main = "semivariogram cloud residuals glm")
 
-plot(variogram(tmin ~ 1, obs.d, cutoff=cutoff, width=width), main="sample semivariogram")
-plot(variogram(tmin ~ 1, obs.d, cutoff=cutoff, width=width, alpha = c(0, 45, 90, 135, 180, 225, 270, 315)), main="direction dependance")
-
+plot(variogram(tmin ~ 1, obs.d, cutoff = cutoff, width = width),
+     main = "sample semivariogram")
+plot(variogram(tmin ~ 1, obs.d, cutoff = cutoff, width = width,
+               alpha = c(0, 45, 90, 135, 180, 225, 270, 315)),
+     main = "direction dependance")
 ```
 
 Variogram model
 
-```{r, eval=F}
+```{r, eval=FALSE}
 cutoff <- 100000
-v.emp <- variogram(tmin ~ 1, obs.d, cutoff=cutoff, width=width)
+v_emp <- variogram(tmin ~ 1, obs.d, cutoff = cutoff, width = width)
 
 nugget <- 0.5
 range <- 20000
-vgm.sph <- vgm(psill=3, "Sph", range=range, nugget=0.5, cutoff=cutoff)
-plot(v.emp, vgm.sph, cutoff=cutoff)
+vgm_sph <- vgm(psill = 3, "Sph", range = range, nugget = 0.5, cutoff = cutoff)
+plot(v_emp, vgm_sph, cutoff = cutoff)
 
-vgm.exp <- vgm(psill=3, "Exp", range=range, nugget=0.5, cutoff=cutoff)
-plot(v.emp, vgm.exp, cutoff=cutoff)
+vgm_exp <- vgm(psill = 3, "Exp", range = range, nugget = 0.5, cutoff = cutoff)
+plot(v_emp, vgm_exp, cutoff = cutoff)
 
-vgm.mat <- vgm(psill=3, "Mat", range=range, nugget=0.5, cutoff=cutoff)
-plot(v.emp, vgm.mat, cutoff=cutoff)
+vgm_mat <- vgm(psill = 3, "Mat", range = range, nugget = 0.5, cutoff = cutoff)
+plot(v_emp, vgm_mat, cutoff = cutoff)
 ```
 
 Fit Matern model
 
-```{r, eval=F}
-v.fit <- fit.variogram(v.emp, vgm.mat, fit_range=F)
-plot(v.emp, v.fit)
+```{r, eval=FALSE}
+v_fit <- fit.variogram(v_emp, vgm_mat, fit_range = FALSE)
+plot(v_emp, v_fit)
 ```
 
 #### Ordinary kriging on residuals
 
-```{r, eval=F}
+```{r, eval=FALSE}
 cutoff <- 100000
 nugget <- 0.5
 range <- 20000
 width <- 1000
-v.emp <- variogram(tmin ~ 1, obs.d, cutoff=cutoff, width=width)
-vgm.mat <- vgm(psill=3, "Mat", range=range, nugget=nugget, cutoff=cutoff)
-v.fit <- fit.variogram(v.emp, vgm.mat, fit_range=F)
-ok <- gstat::krige(tmin ~ 1, obs.d, newdata=pred.d, v.fit)
+v_emp <- variogram(tmin ~ 1, obs.d, cutoff = cutoff, width = width)
+vgm_mat <- vgm(psill = 3, "Mat", range = range, nugget = nugget,
+               cutoff = cutoff)
+v_fit <- fit.variogram(v_emp, vgm_mat, fit_range = FALSE)
+ok <- gstat::krige(tmin ~ 1, obs.d, newdata = pred.d, v_fit)
 ```
 
-```{r, eval=F}
+```{r, eval=FALSE}
 m <- ggplot() +
-  geom_spatvector(data = vect(ok), aes(color=var1.pred), size=.1) +
-  geom_sf(data = obs.d, aes(geometry=geometry, color=tmin)) +
-  geom_sf(data = st_as_sf(nc_borders), aes(geometry=geometry), 
-               colour = "grey", linewidth=.3, fill = NA) +
+  geom_spatvector(data = vect(ok), aes(color = var1_pred), size = .1) +
+  geom_sf(data = obs.d, aes(geometry = geometry, color = tmin)) +
+  geom_sf(
+    data = st_as_sf(nc_borders), aes(geometry = geometry),
+    colour = "grey", linewidth = .3, fill = NA
+  ) +
   scale_color_whitebox_c(
-      palette = "muted",
-      labels = scales::label_number(suffix = "°C"),
-      n.breaks = 12,
-      guide = guide_legend(reverse = TRUE)
+    palette = "muted",
+    labels = scales::label_number(suffix = "°C"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
   ) +
   labs(
     fill = "",
     title = "Ordinary kriging"
   ) +
   annotation_scale(
-    location="bl", pad_x = unit(1, "cm"), 
-		pad_y = unit(1, "cm"), 
-		height = unit(0.30, "cm"), 
-		text_cex = 1
-	) +
-	annotation_north_arrow(
-	  location = "br", 
-	  which_north = "true", 
-		pad_x = unit(0.2, "cm"), 
-		pad_y = unit(0.2, "cm")
-	) +
-	theme(
-			axis.text = element_text(size=12, family="serif"),
-			plot_caption = element_text(size=10, family="serif"),
-			legend.text = element_text(size=12, family="serif"),
-			legend.title = element_text(size=12, family="serif"),
-			panel.background = element_rect(fill = "white"),
-			panel.grid.major=element_line(colour="grey")
-		)
+    location = "bl", pad_x = unit(1, "cm"),
+    pad_y = unit(1, "cm"),
+    height = unit(0.30, "cm"),
+    text_cex = 1
+  ) +
+  annotation_north_arrow(
+    location = "br",
+    which_north = "true",
+    pad_x = unit(0.2, "cm"),
+    pad_y = unit(0.2, "cm")
+  ) +
+  theme(
+    axis.text = element_text(size = 12, family = "serif"),
+    plot_caption = element_text(size = 10, family = "serif"),
+    legend.text = element_text(size = 12, family = "serif"),
+    legend.title = element_text(size = 12, family = "serif"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(colour = "grey")
+  )
 m
 ```

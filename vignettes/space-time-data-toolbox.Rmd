@@ -58,12 +58,14 @@ plot(rastdt_obj[2], main = "var2 (2nd SpatRaster)")
 SpatVector is designed for irregular spatial data (points, lines, polygons). We can use it with points and add time dimension as a simple layer (column).
 
 ```{r}
-vect_obj <- vect(df, geom = c("lon", "lat"), 
-              crs = "EPSG:4326", 
-              keepgeom = FALSE)
+vect_obj <- vect(df,
+  geom = c("lon", "lat"),
+  crs = "EPSG:4326",
+  keepgeom = FALSE
+)
 head(vect_obj)
-plot(vect_obj[vect_obj$time=="2023-11-02"], 2, main = "var1 - 2023-11-02")
-plot(vect_obj[vect_obj$time=="2023-11-02"], 3, main = "var2 - 2023-11-02")
+plot(vect_obj[vect_obj$time == "2023-11-02"], 2, main = "var1 - 2023-11-02")
+plot(vect_obj[vect_obj$time == "2023-11-02"], 3, main = "var2 - 2023-11-02")
 ```
 
 ![](IMG-1369.PNG)
@@ -84,10 +86,10 @@ sf_obj <- sf::st_as_sf(df, coords = c("lon", "lat"), crs = "EPSG:4326")
 ```{r}
 df$time <- as.Date(df$time)
 sftime_obj <- sftime::st_as_sftime(df,
-    coords = c("lon", "lat"),
-    time_column_name = "time",
-    crs = "EPSG:4326"
-  )
+  coords = c("lon", "lat"),
+  time_column_name = "time",
+  crs = "EPSG:4326"
+)
 head(sftime_obj)
 plot(sftime_obj)
 ```
@@ -145,7 +147,7 @@ is_starrayobj(starray_obj)
 Plotting a timeserie is very straightforward
 
 ```{r}
-plot(starray_obj$starray[1,1,,1], main = "This is a timeserie")
+plot(starray_obj$starray[1, 1, , 1], main = "This is a timeserie")
 ```
 
 ## Conversions

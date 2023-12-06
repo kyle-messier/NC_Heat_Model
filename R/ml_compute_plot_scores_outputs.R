@@ -9,7 +9,12 @@ library(ggplot2)
 #' @param title A character for plot title
 #' @export
 plot_res <- function(pred, res, title) {
-  ggplot(data.frame(x = as.numeric(pred), y = as.numeric(res)), aes(x, y)) +
+  # necessary for linting
+  x <- y <- NULL
+  ggplot(
+    data.frame(x = as.numeric(pred), y = as.numeric(res)),
+    aes_string(x, y)
+  ) +
     geom_point(col = "blue", alpha = .5) +
     ylim(-10, 10) +
     ylab("Residuals") +
@@ -26,13 +31,14 @@ plot_res <- function(pred, res, title) {
 #' @param title A character for plot title
 #' @export
 plot_reg <- function(obs, pred, title) {
+  x <- y <- NULL
   ggplot(data.frame(x = as.numeric(obs), y = as.numeric(pred)), aes(x, y)) +
     geom_point(col = "blue", alpha = .5) +
     geom_abline(slope = 1, intercept = 0, color = "red") +
     ylab("Predicted") +
     xlab("Observed") +
     ggtitle(title) +
-    coord_equal() 
+    coord_equal()
 }
 
 
@@ -46,10 +52,11 @@ plot_reg <- function(obs, pred, title) {
 #' Each row corresponds to the RMSE of 1 fold for on type of cross validation.
 #' @export
 compute_rmse_cv <- function(cv_fit, predicted) {
+  .preds <- .pred <- type <- NULL
   cv_fit %>%
-  unnest(.preds) %>%
-  group_by(id, type) %>%
-  rmse({{predicted}}, .pred)
+    unnest(.preds) %>%
+    group_by(id, type) %>%
+    Metrics::rmse({{ predicted }}, .pred)
 }
 
 #' map RMSE on cross validation splits
@@ -61,6 +68,7 @@ compute_rmse_cv <- function(cv_fit, predicted) {
 #' @return ggplot map of RMSE by cross validation type
 #' @export
 map_rmse_cv <- function(cv_fit, cv_rmse) {
+  .preds <- .estimate <- type <- NULL
   p <- cv_fit %>%
     unnest(.preds) %>%
     left_join(cv_rmse, by = c("id", "type")) %>%
@@ -90,9 +98,10 @@ map_rmse_cv <- function(cv_fit, cv_rmse) {
 #' @return ggplot map of residuals after cross validation type
 #' @export
 map_res_cv <- function(cv_fit, predicted) {
+  .preds <- .pred <- type <- NULL
   p <- cv_fit %>%
     unnest(.preds) %>%
-    ggplot(aes(color = {{predicted}} - .pred)) +
+    ggplot(aes(color = {{ predicted }} - .pred)) +
     geom_sf(aes(geometry = geometry), alpha = 1) +
     labs(color = "Residuals") +
     scale_color_whitebox_c(
@@ -118,24 +127,32 @@ map_res_cv <- function(cv_fit, predicted) {
 #' @param predicted The name of the target variable predicted by the model
 #' @return regression plot
 #' @export
-plot_reg_cv <- function(cv_fit, predicted){
+plot_reg_cv <- function(cv_fit, predicted) {
+  .preds <- .pred <- type <- NULL
   range <- cv_fit %>%
-    unnest(.preds) %>% data.table() %>% 
-    summarise(min=floor(min({{predicted}}, .pred)), 
-              max=ceiling(max({{predicted}}, .pred)))
-  
+    unnest(.preds) %>%
+    data.table() %>%
+    summarise(
+      min = floor(min({{ predicted }}, .pred)),
+      max = ceiling(max({{ predicted }}, .pred))
+    )
+
   p <- cv_fit %>%
     unnest(.preds) %>%
     ggplot() +
-    geom_point(aes(x = {{predicted}}, y = .pred), alpha = 1) +
+    geom_point(aes(x = {{ predicted }}, y = .pred), alpha = 1) +
     geom_abline(slope = 1, intercept = 0, color = "red") +
     labs(x = "Observed", y = "Predicted") +
-    scale_x_continuous(limits=c(range$min, range$max),
-                       breaks = seq(range$min, range$max, by = 5), 
-                       minor_breaks = seq(range$min, range$max, by = 1)) +
-    scale_y_continuous(limits=c(range$min, range$max),
-                       breaks = seq(range$min, range$max, by = 5),
-                       minor_breaks = seq(range$min, range$max, by = 1)) +
+    scale_x_continuous(
+      limits = c(range$min, range$max),
+      breaks = seq(range$min, range$max, by = 5),
+      minor_breaks = seq(range$min, range$max, by = 1)
+    ) +
+    scale_y_continuous(
+      limits = c(range$min, range$max),
+      breaks = seq(range$min, range$max, by = 5),
+      minor_breaks = seq(range$min, range$max, by = 1)
+    ) +
     coord_equal() +
     facet_wrap(vars(type)) +
     my_theme_paper()
@@ -150,28 +167,33 @@ plot_reg_cv <- function(cv_fit, predicted){
 #' @param predicted The name of the target variable predicted by the model
 #' @return residuals plot
 #' @export
-plot_res_cv <- function(cv_fit, predicted){
+plot_res_cv <- function(cv_fit, predicted) {
+  .preds <- .pred <- type <- NULL
   range <- cv_fit %>%
-    unnest(.preds) %>% data.table() %>% 
-    summarise(min=floor(min({{predicted}}, .pred)), 
-              max=ceiling(max({{predicted}}, .pred)))
+    unnest(.preds) %>%
+    data.table() %>%
+    summarise(
+      min = floor(min({{ predicted }}, .pred)),
+      max = ceiling(max({{ predicted }}, .pred))
+    )
   p <- cv_fit %>%
     unnest(.preds) %>%
     ggplot() +
-    geom_point(aes(x = .pred, y = {{predicted}} - .pred), alpha = 1) +
+    geom_point(aes(x = .pred, y = {{ predicted }} - .pred), alpha = 1) +
     geom_abline(slope = 0, intercept = 0, color = "red") +
     labs(x = "Predicted values", y = "Residuals") +
-    scale_x_continuous(limits=c(range$min, range$max),
-                       breaks = seq(range$min, range$max, by = 5), 
-                       minor_breaks = seq(range$min, range$max, by = 1)) +
-    scale_y_continuous(limits=c(-10, 10),
-                       breaks = seq(-10, 10, by = 5),
-                       minor_breaks = seq(-10, 10, by = 1)) +
+    scale_x_continuous(
+      limits = c(range$min, range$max),
+      breaks = seq(range$min, range$max, by = 5),
+      minor_breaks = seq(range$min, range$max, by = 1)
+    ) +
+    scale_y_continuous(
+      limits = c(-10, 10),
+      breaks = seq(-10, 10, by = 5),
+      minor_breaks = seq(-10, 10, by = 1)
+    ) +
     coord_equal() +
     facet_wrap(vars(type)) +
     my_theme_paper()
   return(p)
 }
-
-
-

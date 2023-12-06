@@ -11,16 +11,21 @@ library(data.table)
 Open full prediction grid
 
 ```{r}
-pred <- fread("../input/prediction_grid_points_urb_rur_space_time_covariates_jja2022.csv")
-colnames(pred) <- c("geom", "geo", "imp", "tcc", "build.fp",
-                    "dem", "build.h", "lon", "lat", "date",
-                    "TNwmo", "TN7am", "TN12am", "TXwmo", "TX7am", "TX12am")  
+input_path <- "../input/"
+pred <- fread(paste0(input_path,
+                     "prediction_grid_points_",
+                     "urb_rur_space_time_covariates_jja2022.csv"))
+colnames(pred) <- c(
+  "geom", "geo", "imp", "tcc", "build.fp",
+  "dem", "build.h", "lon", "lat", "date",
+  "TNwmo", "TN7am", "TN12am", "TXwmo", "TX7am", "TX12am"
+)
 ```
 
 Create a folder to store all prediction grid per dates
 
 ```{r}
-if (!dir.exists("../input/prediction-grid")){
+if (!dir.exists("../input/prediction-grid")) {
   dir.create("../input/prediction-grid")
 }
 ```
@@ -28,11 +33,13 @@ if (!dir.exists("../input/prediction-grid")){
 Save each date seperately 
 
 ```{r}
-dates <- seq(as.Date('2022-06-01'), as.Date('2022-08-31'), by='1 day')
+dates <- seq(as.Date("2022-06-01"), as.Date("2022-08-31"), by = "1 day")
 dates <- as.character(dates)
-for(d in dates){
-  file <- pred[date==d,]
-  fwrite(file, paste0("../input/prediction-grid/prediction_grid_points_urb_rur_space_time_covariates_", d, ".csv"))
+for (d in dates) {
+  file <- pred[date == d, ]
+  fwrite(file, paste0(input_path,
+                      "prediction-grid/prediction_grid_points",
+                      "_urb_rur_space_time_covariates_", d, ".csv"))
 }
 ```
 

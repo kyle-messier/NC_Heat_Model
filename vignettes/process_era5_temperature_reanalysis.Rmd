@@ -41,7 +41,7 @@ head(era5_daily)
 era5_daily <- era5_daily %>% rename("time" = "date")
 source("../R/manipulate_spacetime_data.R")
 stdt_obj <- create_stdtobj(era5_daily, "EPSG:4326")
-sprastds <- convert_stdt_spatrastdataset(stdt_obj) 
+sprastds <- convert_stdt_spatrastdataset(stdt_obj)
 ```
 
 ```{r}
@@ -51,8 +51,7 @@ image(sprastds["TNwmo"]$`2022-06-15`)
 image(sprastds["TNwmo"]$`2022-06-16`)
 
 # time serie
-one_pixel <- sprastds["TNwmo"][1,1]
-dates <- as.Date(colnames(one_pixel)) 
+one_pixel <- sprastds["TNwmo"][1, 1]
+dates <- as.Date(colnames(one_pixel))
 plot(dates, one_pixel)
 ```
-

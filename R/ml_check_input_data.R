@@ -1,10 +1,9 @@
-if (!require(emojifont)) install.packages('emojifont')
 library(emojifont)
 
 #' Check observation dataset content
 #'
 #' @param data A datatable of observations
-#' @param metadata a list of characters with obs info 
+#' @param metadata a list of characters with obs info
 #' (eg: county, date, lat, lon, ...)
 #' @param predictors a list of characters names of predictors
 #' @param predicted a character with the name of the predicted variable
@@ -25,7 +24,7 @@ check_obs <- function(data, metadata, predictors, predicted) {
 #' Check prediction grid content
 #'
 #' @param data A datatable of observations
-#' @param metadata a list of characters with obs info 
+#' @param metadata a list of characters with obs info
 #' (eg: county, date, lat, lon, ...)
 #' @param predictors a list of characters names of predictors
 #' @export
@@ -38,8 +37,3 @@ check_pred_grid <- function(data, metadata, predictors) {
   }
   message("prediction grid content: ", emoji("white_check_mark"))
 }
-
-
-
-
-

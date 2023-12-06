@@ -6,7 +6,7 @@ date: "2023-09-01"
 
 Libraries
 
-```{r, message=F}
+```{r, message=FALSE}
 library(terra)
 library(sf)
 library(sftime)
@@ -23,99 +23,115 @@ library(lubridate)
 library(xts)
 ```
 
+
+```{r}
+input_path <- "../input/"
+```
 Open all data
 
 ```{r}
-noaa <- fread("../input/NC-AWS-NOAA-dailysummary-20220601-20220831-space-time-covariates.csv")
-eco <- fread("../input/NC-econet-dailysummary-20220601-20220831-space-time-covariates.csv")
+noaa <- fread(paste0(input_path,
+                     "NC-AWS-NOAA-dailysummary-20220601-20220831",
+                     "-space-time-covariates.csv"))
+eco <- fread(paste0(input_path,
+                    "NC-econet-dailysummary-20220601-20220831",
+                    "-space-time-covariates.csv"))
 
-char.network <- function(char){
-  if(char=='7'){
-    network <- 'COOP'
-    dayref <- '7am'
-  }
-  else if (char=='U'){
-    network <- 'RAWS'
+char_network <- function(char) {
+  if (char == "7") {
+    network <- "COOP"
+    dayref <- "7am"
+  } else if (char == "U") {
+    network <- "RAWS"
     dayref <- NA
-  }
-  else if (char=='R'){
-    network <- 'CRN'
+  } else if (char == "R") {
+    network <- "CRN"
     dayref <- NA
+  } else if (char == "W") {
+    network <- "WBAN"
+    dayref <- "12am"
   }
-  else if (char=='W'){
-    network <- 'WBAN'
-    dayref <- '12am'
-  }
-  return(list('network'=network, 'dayref'=dayref))
+  return(list("network" = network, "dayref" = dayref))
 }
 
 library(stringr)
 # -- add network feature
-noaa <- noaa[, ':='(char=str_sub(TMIN_ATTRIBUTES,-1,-1))]
-noaa$network <- lapply(noaa[,char], FUN=function(x) char.network(x)$network) 
-noaa$dayref <- lapply(noaa[,char], FUN=function(x) char.network(x)$dayref) 
-eco$dayref <- '12am'
+noaa <- noaa[, ":="(char = str_sub(TMIN_ATTRIBUTES, -1, -1))]
+noaa$network <- lapply(noaa[, char], FUN = function(x) char_network(x)$network)
+noaa$dayref <- lapply(noaa[, char], FUN = function(x) char_network(x)$dayref)
+eco$dayref <- "12am"
 
-eco <- eco[,.(station, date, TNwmo, TN7am, TN12am, TXwmo, TX7am, 
-              TX12am, tmax, tmin, network, dayref, lat, lon, alt, imp, tcc,
-              build.fp, build.h, dem)] 
-noaa <- noaa[,.(station=STATION, date=DATE, TNwmo, TN7am, TN12am, TXwmo, TX7am,
-                TX12am, tmax=TMAX, tmin=TMIN, network, dayref, lat=LATITUDE, lon=LONGITUDE, alt=ELEVATION, imp, tcc,
-                build.fp, build.h, dem)]
+eco <- eco[, .(
+  station, date, TNwmo, TN7am, TN12am, TXwmo, TX7am,
+  TX12am, tmax, tmin, network, dayref, lat, lon, alt, imp, tcc,
+  build.fp, build.h, dem
+)]
+noaa <- noaa[, .(
+  station = STATION, date = DATE, TNwmo, TN7am, TN12am, TXwmo, TX7am,
+  TX12am, tmax = TMAX, tmin = TMIN, network, dayref, lat = LATITUDE,
+  lon = LONGITUDE, alt = ELEVATION, imp, tcc,
+  build.fp, build.h, dem
+)]
 
-all.obs <- rbind(eco, noaa) 
-all.obs$network <- as.character(all.obs$network)
-all.aws <- unique(all.obs[,.(station, lon, lat, network, dayref, alt, imp, tcc, build.fp, build.h, dem)], by='station')
+all_obs <- rbind(eco, noaa)
+all_obs$network <- as.character(all_obs$network)
+all.aws <- unique(all_obs[, .(station, lon, lat, network, dayref, alt,
+                              imp, tcc, build.fp, build.h, dem)],
+                  by = "station")
 ```
 
-Complete all.obs with missing data 
+Complete all_obs with missing data 
 
 ```{r}
-dates <- seq(as.Date('2022-06-02'), as.Date('2022-08-31'), by='1 day')
+dates <- seq(as.Date("2022-06-02"), as.Date("2022-08-31"), by = "1 day")
 dates <- as.character(dates)
 
-dates.seq <- rep(dates, each=nrow(all.aws))
-monitors.seq <- do.call("rbind", replicate(length(dates), all.aws, simplify = FALSE))
+dates_seq <- rep(dates, each = nrow(all.aws))
+monitors_seq <- do.call("rbind", replicate(length(dates), all.aws,
+                                           simplify = FALSE))
 
-full.st <- as.data.table(cbind('date'=dates.seq, monitors.seq))
-all.obs$date <- as.character(all.obs$date)
-#full.st$date <- as.Date(full.st$date)
-all.obs <- merge(all.obs[,.(station, date, TNwmo, TXwmo, TN7am, TX7am, TN12am, TX12am, tmax, tmin)], full.st, by=c('station', 'date'), all.y=T)
-all.obs$date <- as.Date(all.obs$date)
+full_st <- as.data.table(cbind("date" = dates_seq, monitors_seq))
+all_obs$date <- as.character(all_obs$date)
+all_obs <- merge(all_obs[, .(station, date, TNwmo, TXwmo, TN7am, TX7am,
+                             TN12am, TX12am, tmax, tmin)],
+                 full_st, by = c("station", "date"), all.y = TRUE)
+all_obs$date <- as.Date(all_obs$date)
 ```
 
 
 Count NA per monitors 
 
 ```{r}
-monitors.na <- all.obs[, .(na.tmax = sum(is.na(tmax)), na.tmin = sum(is.na(tmin))), by=station]
-network.summary <- all.obs[, .(tmax.avg = mean(tmax, na.rm=T), tmin.avg = mean(tmin, na.rm=T)), by=.(date, network)]
+monitors_na <- all_obs[, .(na_tmax = sum(is.na(tmax)),
+                           na_tmin = sum(is.na(tmin))), by = station]
+network_summary <- all_obs[, .(tmax.avg = mean(tmax, na_rm = TRUE),
+                               tmin.avg = mean(tmin, na_rm = TRUE)),
+                           by = .(date, network)]
 
-network.summary %>%
-  ggplot()+
-  geom_line(aes(x=date, y=tmin.avg, group=network, color=network))
+network_summary %>%
+  ggplot() +
+  geom_line(aes(x = date, y = tmin.avg, group = network, color = network))
 
-network.summary %>%
-  ggplot()+
-  geom_line(aes(x=date, y=tmax.avg, group=network, color=network))
-
+network_summary %>%
+  ggplot() +
+  geom_line(aes(x = date, y = tmax.avg, group = network, color = network))
 ```
 
 Transform to sf and sftime objects 
 
 ```{r}
-all.obs <- st_as_sftime(all.obs, 
-                    coords=c('lon', 'lat'),
-                    remove=F,
-                    crs="+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0",
-                    time_column_name='date')
+all_obs <- st_as_sftime(all_obs,
+  coords = c("lon", "lat"),
+  remove = FALSE,
+  crs = "EPSG:4326",
+  time_column_name = "date"
+)
 
-all.aws <- st_as_sf(all.aws, 
-                    coords=c('lon', 'lat'),
-                    remove=F,
-                    crs="+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
-
-
+all.aws <- st_as_sf(all.aws,
+  coords = c("lon", "lat"),
+  remove = FALSE,
+  crs = "EPSG:4326"
+)
 ```
 
 
@@ -124,98 +140,106 @@ Plot all monitors with network name
 
 ```{r}
 ggplot() +
-  geom_sf(data = all.aws, aes(shape=as.character(network))) +
+  geom_sf(data = all.aws, aes(shape = as.character(network))) +
   labs(
     shape = "network",
     title = "All air temperature monitors"
   ) +
   annotation_scale(
-    location="bl", pad_x = unit(1, "cm"), 
-		pad_y = unit(1, "cm"), 
-		height = unit(0.30, "cm"), 
-		text_cex = 1
-	) +
-	annotation_north_arrow(
-	  location = "br", 
-	  which_north = "true", 
-		pad_x = unit(0.2, "cm"), 
-		pad_y = unit(0.2, "cm")
-	) +
-	theme(
-			axis.text = element_text(size=12, family="serif"),
-			plot.caption = element_text(size=10, family="serif"),
-			legend.text = element_text(size=12, family="serif"),
-			legend.title = element_text(size=12, family="serif"),
-			panel.background = element_rect(fill = "white"),
-			panel.grid.major=element_line(colour="grey")
-		)
+    location = "bl", pad_x = unit(1, "cm"),
+    pad_y = unit(1, "cm"),
+    height = unit(0.30, "cm"),
+    text_cex = 1
+  ) +
+  annotation_north_arrow(
+    location = "br",
+    which_north = "true",
+    pad_x = unit(0.2, "cm"),
+    pad_y = unit(0.2, "cm")
+  ) +
+  theme(
+    axis.text = element_text(size = 12, family = "serif"),
+    plot.caption = element_text(size = 10, family = "serif"),
+    legend.text = element_text(size = 12, family = "serif"),
+    legend.title = element_text(size = 12, family = "serif"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(colour = "grey")
+  )
 
 ggplot() +
-  geom_sf(data = all.aws[which(all.aws$network %in% c('CRN', 'ECONET', 'WBAN')),], aes(shape=as.character(network))) +
+  geom_sf(data = all.aws[which(all.aws$network %in% c("CRN", "ECONET",
+                                                      "WBAN")), ],
+          aes(shape = as.character(network))) +
   labs(
     shape = "network",
     title = "Reliable air temperature monitors"
   ) +
   annotation_scale(
-    location="bl", pad_x = unit(1, "cm"), 
-		pad_y = unit(1, "cm"), 
-		height = unit(0.30, "cm"), 
-		text_cex = 1
-	) +
-	annotation_north_arrow(
-	  location = "br", 
-	  which_north = "true", 
-		pad_x = unit(0.2, "cm"), 
-		pad_y = unit(0.2, "cm")
-	) +
-	theme(
-			axis.text = element_text(size=12, family="serif"),
-			plot.caption = element_text(size=10, family="serif"),
-			legend.text = element_text(size=12, family="serif"),
-			legend.title = element_text(size=12, family="serif"),
-			panel.background = element_rect(fill = "white"),
-			panel.grid.major=element_line(colour="grey")
-		)
-
+    location = "bl", pad_x = unit(1, "cm"),
+    pad_y = unit(1, "cm"),
+    height = unit(0.30, "cm"),
+    text_cex = 1
+  ) +
+  annotation_north_arrow(
+    location = "br",
+    which_north = "true",
+    pad_x = unit(0.2, "cm"),
+    pad_y = unit(0.2, "cm")
+  ) +
+  theme(
+    axis.text = element_text(size = 12, family = "serif"),
+    plot.caption = element_text(size = 10, family = "serif"),
+    legend.text = element_text(size = 12, family = "serif"),
+    legend.title = element_text(size = 12, family = "serif"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(colour = "grey")
+  )
 ```
 
 Timeseries per network
 
 ```{r}
-all.obs %>%
-  ggplot() + 
-  geom_path(aes(y = tmin, x = date), alpha=.1) +
+all_obs %>%
+  ggplot() +
+  geom_path(aes(y = tmin, x = date), alpha = .1) +
   facet_wrap(~ as.character(network), scales = "fixed")
 ```
 
 ```{r}
-ggplot(all.obs) +
-    geom_tile(aes(y = as.factor(lon), x = date, fill = tmin)) +
-        scale_x_date(date_labels="%d/%m", date_breaks='7 days', 
-          date_minor_breaks='1 day', 
-            limits=c(as.Date("2022-06-01", tz="UTC"), as.Date("2022-08-31", tz="UTC")))+
-    scale_fill_whitebox_c(
-      palette = "muted",
-      labels = scales::label_number(suffix = "°C"),
-      n.breaks = 12,
-      guide = guide_legend(reverse = TRUE)
+ggplot(all_obs) +
+  geom_tile(aes(y = as.factor(lon), x = date, fill = tmin)) +
+  scale_x_date(
+    date_labels = "%d/%m", date_breaks = "7 days",
+    date_minor_breaks = "1 day",
+    limits = c(as.Date("2022-06-01", tz = "UTC"),
+               as.Date("2022-08-31", tz = "UTC"))
   ) +
-    ggtitle('TMIN')+
-        #guides(fill = guide_colourbar(barwidth = 1.5, barheight=22))+
-    theme(axis.text.x = element_text(size=16),
-                  axis.text.y = element_blank(),
-                axis.title.x = element_text(size=22), 
-                axis.title.y = element_text(size=22),
-                legend.key.width = unit(1, 'cm'), 
-                panel.grid.major = element_line(color="grey", size=0.2),
-                legend.text = element_text(size=16),
-                plot.caption = element_text(size=14),
-                legend.title = element_text(size=18),
-                legend.text.align = 0,
-                legend.box.spacing=unit(0, "pt"))
+  scale_fill_whitebox_c(
+    palette = "muted",
+    labels = scales::label_number(suffix = "°C"),
+    n.breaks = 12,
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  ggtitle("TMIN") +
+  theme(
+    axis.text.x = element_text(size = 16),
+    axis.text.y = element_blank(),
+    axis.title.x = element_text(size = 22),
+    axis.title.y = element_text(size = 22),
+    legend.key.width = unit(1, "cm"),
+    panel.grid.major = element_line(color = "grey", size = 0.2),
+    legend.text = element_text(size = 16),
+    plot.caption = element_text(size = 14),
+    legend.title = element_text(size = 18),
+    legend.text.align = 0,
+    legend.box.spacing = unit(0, "pt")
+  )
 ```
 
 ```{r}
-fwrite(all.obs, "../input/NC-monitors-dailysummary-20220601-20220831-space-time-covariates.csv")
+fwrite(all_obs,
+       paste0(input_path,
+              "NC-monitors-dailysummary-20220601-20220831",
+              "-space-time-covariates.csv"))
 ```
 

@@ -4,16 +4,16 @@ test_that("Check add_imp works", {
   # -- 1st example: sp_vect erroneous coordinates produce NAs
   d <- data.frame(lon = c(0, 10), lat = c(0, 10))
   x <- vect(d, geom = c("lon", "lat"), crs = "epsg:5070")
-  expect_error(add_imp(sp_vect = x), "NAs found in imp column")
+  imp_path <- "../testdata/rtp_imp.tif"
+  expect_error(add_imp(imp_path, sp_vect = x), "NAs found in imp column")
 
   # -- 2nd example: imp file does not exist
-  sp_vect <- vect("../input/prediction_grid_nad83_empty.shp")
-  sp_vect <- sp_vect[600:700]
+  sp_vect <- terra::vect("../testdata/rtp_spatvector.shp")
   expect_error(add_imp("blablabla", sp_vect), "imp_path does not exist")
 
   # -- 3rd example: everything works properly
-  expect_no_error(add_imp(sp_vect = sp_vect))
-  expect_contains(names(add_imp(sp_vect = sp_vect)), "imp")
+  expect_no_error(add_imp(imp_path, sp_vect = sp_vect))
+  expect_contains(names(add_imp(imp_path, sp_vect = sp_vect)), "imp")
 })
 
 

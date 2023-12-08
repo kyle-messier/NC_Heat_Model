@@ -1,12 +1,10 @@
 #' Add imperviousness covariate to a terra::SpatVector
 #'
 #' @param imp_path a character with the path to imperviousness raster file
-#' (default: "../input/NC_imperviousness_2019.tif")
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "imp"
 #' @export
-add_imp <- function(imp_path = "../input/NC_imperviousness_2019.tif",
-                    sp_vect) {
+add_imp <- function(imp_path, sp_vect) {
   if (!file.exists(imp_path)) {
     stop("imp_path does not exist")
   }
@@ -28,8 +26,7 @@ add_imp <- function(imp_path = "../input/NC_imperviousness_2019.tif",
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "tcc"
 #' @export
-add_tcc <- function(tcc_path = "../input/NC_tree-canopy-cover_2021.tif",
-                    sp_vect) {
+add_tcc <- function(tcc_path, sp_vect) {
   if (!file.exists(tcc_path)) {
     stop("tcc_path does not exist")
   }
@@ -51,12 +48,10 @@ add_tcc <- function(tcc_path = "../input/NC_tree-canopy-cover_2021.tif",
 #' Add digital elevation model covariate to a terra::SpatVector
 #'
 #' @param dem_path a character with the path to digital elevation model file
-#' (default: "../input/NC-DEM.tif")
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "dem"
 #' @export
-add_dem <- function(dem_path = "../input/NC-DEM-agg.tif",
-                    sp_vect) {
+add_dem <- function(dem_path, sp_vect) {
   if (!file.exists(dem_path)) {
     stop("dem_path does not exist")
   }
@@ -105,9 +100,7 @@ add_terrain <- function(rast_dem) {
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "build_fp"
 #' @export
-add_canopy_h <- function(
-    canopy_h_path = "../input/NC_forest_height_2019_crs-wgs84.tif",
-    sp_vect) {
+add_canopy_h <- function(canopy_h_path, sp_vect) {
   if (!file.exists(canopy_h_path)) {
     stop("canopy_h_path does not exist")
   }
@@ -133,16 +126,11 @@ add_canopy_h <- function(
 #'
 #' @param build_fp_path a character with the path to building footprint
 #' raster file
-#' (default: "../input/NC_building-footprints/NorthCarolina_sum.tif")
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "build_fp"
 #' @export
 add_build_fp <- function(
-    build_fp_path = paste0(
-      "../input/NC_building-footprints/",
-      "NorthCarolina_sum.tif"
-    ),
-    sp_vect) {
+    build_fp_path, sp_vect) {
   if (!file.exists(build_fp_path)) {
     stop("build_fp_path does not exist")
   }
@@ -182,17 +170,11 @@ build_h_table <- data.table::as.data.table(
 #' Add building height covariate to a terra::SpatVector
 #'
 #' @param build_h_path a character with the path to building height shapefile
-#' (default: "../input/NC_building-height-by-block/-
-#' NC_building-heights-by-block.shp")
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "build_h"
 #' @export
 add_build_h <- function(
-    build_h_path = paste0(
-      "../input/NC_building-height-by-block/",
-      "NC_building-heights-by-block.shp"
-    ),
-    sp_vect) {
+    build_h_path, sp_vect) {
   if (!file.exists(build_h_path)) {
     stop("build_h_path does not exist")
   }
@@ -208,15 +190,14 @@ add_build_h <- function(
   return(sp_vect_cov)
 }
 
-lc <- terra::rast("../input/NC_nlcd_crs-wgs84.tif")
-
 #' Compute land cover classes ratio in circle buffers arount points
 #'
 #' @param spvect terra::SpatVector of points geometry
 #' @param nlcd national land cover dataset as a terra::SpatRaster
 #' @param buf_radius numeric giving the radius of buffer around points
 #' @export
-add_nlcd_class_ratio <- function(spvect, nlcd = lc, buf_radius = 150) {
+add_nlcd_class_ratio <- function(spvect, nlcd_path, buf_radius = 150) {
+  nlcd <- terra::rast(nlcd_path)
   # create circle buffers with 150m radius
   bufs_pol <- terra::buffer(spvect, width = buf_radius)
   bufs_pol <- sf::st_as_sf(bufs_pol)
@@ -243,7 +224,7 @@ add_nlcd_class_ratio <- function(spvect, nlcd = lc, buf_radius = 150) {
 #' @param datatable A data.table object with columns "lat", "lon"
 #' @param crs A character containing the crs of spatial data
 #' @returns same datatable object with "county" columns
-add_nc_county <- function(datatable, crs) {
+add_nc_county <- function(nc_poly_path, datatable, crs) {
   if (class(crs) != "character") {
     stop("crs is not a character")
   }
@@ -256,13 +237,13 @@ add_nc_county <- function(datatable, crs) {
   if (!("lon" %in% colnames(datatable))) {
     stop("datatable does not contain lon column")
   }
-  nc_poly <- "North_Carolina_State_and_County_Boundary_Polygons.shp"
-  nc_borders <- vect(paste0("../input/NC_county_boundary/", nc_poly))
+  nc_borders <- terra::vect(nc_poly_path)
   if (!same.crs(nc_borders, crs)) {
-    nc_borders <- project(nc_borders, crs)
+    nc_borders <- terra::project(nc_borders, crs)
   }
   loc <- unique(datatable[, c("lon", "lat")])
-  loc <- vect(loc, geom = c("lon", "lat"), crs = crs, keepgeom = TRUE)
+  loc <- terra::vect(loc, geom = c("lon", "lat"),
+                     crs = crs, keepgeom = TRUE)
   loc$county <- terra::extract(nc_borders[, c("County")], loc)$County
   datatable <- merge(datatable,
     loc[, c("lon", "lat", "county")],
@@ -271,24 +252,20 @@ add_nc_county <- function(datatable, crs) {
   return(datatable)
 }
 
-era5_file <- "era5_daily_reanalysis_2022-05-02_2022-09-29.csv"
-era5 <- data.table::fread(paste0("../input/", era5_file))
-era5 <- era5 %>% dplyr::rename(time = date)
-
-# convert era5 to stdt and then to SpatRasterDataset
-source("../R/manipulate_spacetime_data.R")
-era5_stdt <- create_stdtobj(era5, "EPSG:4326")
-era5_rastds <- convert_stdt_spatrastdataset(era5_stdt)
 
 #' Add minimum temperature computed from ERA5 reanalysis to SpatVector
 #'
 #' @param data_vect An stdtobj
-#' @param era5 A SpatRasterDataset with era5 covariates
+#' @param era5_path A character path to era5 csv
 #' @returns a SpatVect in long format, each line corresponds to 1 lat-lon-time
 #' @export
-add_era5_vect <- function(data_vect, era5 = era5_rastds) {
+add_era5_vect <- function(data_vect, era5_path) {
+  era5 <- data.table::fread(era5_path) %>%
+    dplyr::rename(time = date) %>%
+    HeatModel::create_stdtobj(crs_stdt = "EPSG:4326") %>%
+    HeatModel::convert_stdt_spatrastdataset()
   # empty prediction SpatVector
-  new_data_vect <- vect(geom(data_vect)[, c("x", "y")],
+  new_data_vect <- terra::vect(geom(data_vect)[, c("x", "y")],
     type = "points",
     crs = terra::crs(data_vect)
   )
@@ -310,12 +287,17 @@ add_era5_vect <- function(data_vect, era5 = era5_rastds) {
 #' Add minimum temperature computed from ERA5 reanalysis to a SpatRaster
 #'
 #' @param data_rast A SpatRaster
+#' @param era5_path A character path to era5 csv
 #' @returns A SpatRasterDataset
 #' @export
-add_era5_rast <- function(data_rast, era5 = era5) {
+add_era5_rast <- function(data_rast, era5_path = era5) {
+  era5 <- data.table::fread(era5_path) %>%
+    dplyr::rename(time = date) %>%
+    HeatModel::create_stdtobj(crs_stdt = "EPSG:4326") %>%
+    HeatModel::convert_stdt_spatrastdataset()
   data_vect <- terra::as.points(data_rast)
   # empty prediction SpatVector
-  new_data_vect <- vect(geom(data_vect)[, c("x", "y")],
+  new_data_vect <- terra::vect(geom(data_vect)[, c("x", "y")],
     type = "points",
     crs = terra::crs(data_vect)
   )
@@ -324,14 +306,14 @@ add_era5_rast <- function(data_rast, era5 = era5) {
   for (i in 2:7) {
     pred_rds_era5[[i - 1]] <- terra::project(
       new_data_vect,
-      terra::crs(era5_rastds[[i]])
+      terra::crs(era5[[i]])
     ) %>%
-      terra::extract(x = era5_rastds[[i]], bind = TRUE) %>%
+      terra::extract(x = era5[[i]], bind = TRUE) %>%
       terra::project(terra::crs(new_data_vect)) %>%
       terra::rasterize(data_rast, field = names())
     # maybe names() won't work
   }
   # turn into a SpatRasterDataset
   pred_rds_era5 <- terra::sds(pred_rds_era5)
-  names(pred_rds_era5) <- names(era5_rastds[[2:7]])
+  names(pred_rds_era5) <- names(era5[[2:7]])
 }

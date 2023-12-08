@@ -94,7 +94,7 @@ add_terrain <- function(rast_dem) {
 
 #' Add forest height
 #'
-#' @param build_fp_path a character with the path to building footprint
+#' @param canopy_h_path a character with the path to building footprint
 #' raster file
 #' (default: "../input/NC_building-footprints/NorthCarolina_sum.tif")
 #' @param sp_vect a terra::SpatVector
@@ -149,22 +149,6 @@ add_build_fp <- function(build_fp_path, sp_vect) {
   return(sp_vect_cov)
 }
 
-build_h_table <- data.table::as.data.table(
-  list(
-    "h_number" = c(
-      1, 2, 3,
-      4, 5, 6
-    ),
-    "h_name" = c(
-      "Very High",
-      "High",
-      "Medium-High",
-      "Medium",
-      "Low-Medium",
-      "Low"
-    )
-  )
-)
 
 #' Add building height covariate to a terra::SpatVector
 #'

@@ -1,5 +1,3 @@
-library(terra)
-
 #' Create prediction grid with several steps:
 #' - find urban areas using imperviousness rate
 #' - create grid with 200mx200m cells in urban areas
@@ -57,7 +55,7 @@ create_grid <- function(area, imp) {
   grid_points <- rbind(urb_grid_df, rur_grid_df)
 
   # -- keep only the geo covariate
-  grid_points <- grid_points %>% select("geo")
+  grid_points <- grid_points %>% dplyr::select("geo")
 
   # SAVE GRID POINTS AS VECTOR
 

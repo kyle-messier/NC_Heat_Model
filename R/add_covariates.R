@@ -3,6 +3,7 @@
 #' @param imp_path a character with the path to imperviousness raster file
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "imp"
+#' @importFrom data.table "%>%"
 #' @export
 add_imp <- function(imp_path, sp_vect) {
   if (!file.exists(imp_path)) {

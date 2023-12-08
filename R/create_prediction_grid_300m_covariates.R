@@ -2,16 +2,15 @@
 #'
 #' @param borders_path a character path to borders shapefile
 #' @param covar_path a list of character path to covariates files
-#' @param output_path a character path to the output storage folder 
+#' @param output_path a character path to the output storage folder
 #' @returns the same terra::SpatVector with the column "imp"
 #' @export
 create_pred_rds <- function(borders_path,
                             covar_path,
                             output_path) {
-  
   # create spat raster in borders
   borders <- terra::vect(borders_path)
-  imp <- terra::rast(covar_path$imp) %>%
+  imp <- terra::rast(covar_path$imp)
   borders_proj <- terra::project(borders, crs(imp))
   imp <- terra::mask(borders_proj)
 
@@ -50,8 +49,8 @@ create_pred_rds <- function(borders_path,
   pred_rds <- terra::sds(pred_rds)
 
   # ADD ERA5 COVARIATES
-  era5 <- fread(covar_path$era5)
-  era5 <- era5 %>% rename(time = date)
+  era5 <- fread(covar_path$era5) %>%
+    data.table::rename(time = date)
   # convert era5 to stdt and then to SpatRasterDataset
   era5_stdt <- create_stdtobj(era5, "EPSG:4326")
   era5_rds <- convert_stdt_spatrastdataset(era5_stdt)
@@ -67,9 +66,9 @@ create_pred_rds <- function(borders_path,
       new_pred_vect,
       crs(era5_rds[[i]])
     ) %>%
-      terra::extract(x = era5_rds[[i]], y = ., bind = TRUE) %>%
-      terra::project(., terra::crs(new_pred_vect)) %>%
-      terra::rasterize(., pred_rast, field = terra::names(.))
+      terra::extract(x = era5_rds[[i]], bind = TRUE) %>%
+      terra::project(terra::crs(new_pred_vect)) %>%
+      terra::rasterize(pred_rast, field = terra::names())
   }
   # turn into a SpatRasterDataset
   pred_rds_era5 <- terra::sds(pred_rds_era5)
@@ -85,7 +84,7 @@ create_pred_rds <- function(borders_path,
       rast_date[[era5_cov]] <- pred_rds_era5[era5_cov][date]
     }
     list_rast_dates[[date]] <- rast_date
-    writeRaster(rast_date, 
+    writeRaster(rast_date,
                 filename = paste0(output_path, "pred_grid_", date, ".tif"))
   }
 }

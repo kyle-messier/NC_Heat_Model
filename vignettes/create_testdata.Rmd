@@ -16,8 +16,10 @@ Extract RTP covariates
 rtp_subset <- function(sp) {
   lat <- c(35.6, 36.11, 36.11, 35.6)
   lon <- c(-79.19, -79.19, -78.39, -78.39)
-  ext <- vect(cbind(lon, lat), type = "polygons", crs = "EPSG:4326")
-  ext_proj <- terra::project(ext, crs(sp))
+  ext <- terra::vect(cbind(lon, lat),
+                     type = "polygons",
+                     crs = "EPSG:4326")
+  ext_proj <- terra::project(ext, terra::crs(sp))
   crop_raster <- terra::crop(sp, ext_proj)
   return(crop_raster)
 }
@@ -69,7 +71,7 @@ writeVector(vector_rtp, "../tests/testdata/rtp_spatvector.shp",
 Small lon-lat-time dataframe
 
 ```{r}
-lon <- seq(-79.18, -78.40, length.out = 5) 
+lon <- seq(-79.18, -78.40, length.out = 5)
 lat <- seq(35.7, 36.10, length.out = 5)
 obs <- expand.grid("lon" = lon, "lat" = lat) %>%
   data.table::as.data.table() %>%
@@ -80,7 +82,7 @@ networks <- c(rep("net1", 5), rep("net2", 5), rep("net3", 5), rep("net4", 5),
               rep("net5", 5))
 time_seq <- seq(as.Date("2022-08-01"), as.Date("2022-08-25"), by = "day")
 obs$time <- rep(time_seq, 10)
-obs$station <- rep(seq(1,25,1), 10)
+obs$station <- rep(seq(1, 25, 1), 10)
 obs$county <- rep(counties, 10)
 obs$network <- rep(networks, 10)
 write.csv(obs, "../tests/testdata/rtp_points.csv")

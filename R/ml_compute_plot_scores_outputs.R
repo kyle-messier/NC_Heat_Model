@@ -3,6 +3,8 @@
 #' @param pred A vector of prediction
 #' @param res A vector of residuals
 #' @param title A character for plot title
+#' @import ggplot2
+#' @import tidyr
 #' @export
 plot_res <- function(pred, res, title) {
   # necessary for linting
@@ -48,10 +50,10 @@ plot_reg <- function(obs, pred, title) {
 #' Each row corresponds to the RMSE of 1 fold for on type of cross validation.
 #' @export
 compute_rmse_cv <- function(cv_fit, predicted) {
-  .preds <- .pred <- type <- NULL
+  id <- .preds <- .pred <- type <- NULL
   cv_fit %>%
     unnest(.preds) %>%
-    group_by(id, type) %>%
+    dplyr::group_by(id, type) %>%
     Metrics::rmse({{ predicted }}, .pred)
 }
 
@@ -67,11 +69,11 @@ map_rmse_cv <- function(cv_fit, cv_rmse) {
   .preds <- .estimate <- type <- NULL
   p <- cv_fit %>%
     unnest(.preds) %>%
-    left_join(cv_rmse, by = c("id", "type")) %>%
+    dplyr::left_join(cv_rmse, by = c("id", "type")) %>%
     ggplot(aes(color = .estimate)) +
     geom_sf(aes(geometry = geometry), alpha = 1) +
     labs(color = "RMSE") +
-    scale_color_whitebox_c(
+    tidyterra::scale_color_whitebox_c(
       palette = "muted",
       labels = scales::label_number(suffix = "ºC"),
       n.breaks = 8,
@@ -100,7 +102,7 @@ map_res_cv <- function(cv_fit, predicted) {
     ggplot(aes(color = {{ predicted }} - .pred)) +
     geom_sf(aes(geometry = geometry), alpha = 1) +
     labs(color = "Residuals") +
-    scale_color_whitebox_c(
+    tidyterra::scale_color_whitebox_c(
       palette = "muted",
       labels = scales::label_number(suffix = "ºC"),
       n.breaks = 8,
@@ -128,7 +130,7 @@ plot_reg_cv <- function(cv_fit, predicted) {
   range <- cv_fit %>%
     unnest(.preds) %>%
     data.table() %>%
-    summarise(
+    dplyr::summarise(
       min = floor(min({{ predicted }}, .pred)),
       max = ceiling(max({{ predicted }}, .pred))
     )
@@ -168,7 +170,7 @@ plot_res_cv <- function(cv_fit, predicted) {
   range <- cv_fit %>%
     unnest(.preds) %>%
     data.table() %>%
-    summarise(
+    dplyr::summarise(
       min = floor(min({{ predicted }}, .pred)),
       max = ceiling(max({{ predicted }}, .pred))
     )

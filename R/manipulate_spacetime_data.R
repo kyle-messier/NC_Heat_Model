@@ -372,7 +372,7 @@ project_dt <- function(datatable, crs_ori, crs_dest) {
   colnames(loc_sf)[colnames(loc_sf) == "lon"] <- "lon_ori"
   colnames(loc_sf)[colnames(loc_sf) == "lat"] <- "lat_ori"
   loc_sf <- loc_sf %>%
-    mutate(
+    dplyr::mutate(
       lon = unlist(purr::map(loc_sf$geometry, 1)),
       lat = unlist(purr::map(loc_sf$geometry, 2))
     )

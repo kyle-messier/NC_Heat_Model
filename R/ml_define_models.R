@@ -1,8 +1,3 @@
-library("spatialsample")
-library("tidyverse")
-
-globalVariables(names(sp_sample))
-
 #' Fit linear model on a split
 #'
 #' @param split A tibble of split
@@ -23,7 +18,7 @@ compute_preds_lm <- function(split, formula) {
 #'
 #' @param sp_sample A tibble with 3 variables: splits, id, type
 #' (typically the output of create_sp_folds function)
-#' @param formula
+#' @param formula R formula object
 #' @return A tibble with 4 columns: splits, id, type and .preds
 #' with .preds a tibble with 3 columns:
 #' geometry, {{variable to predict}} and .pred

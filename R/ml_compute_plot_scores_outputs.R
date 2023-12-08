@@ -1,7 +1,3 @@
-source("../R/provide_ggplot_standard_style.R")
-library(rlang)
-library(ggplot2)
-
 #' Displays residual according to prediction
 #'
 #' @param pred A vector of prediction
@@ -64,7 +60,7 @@ compute_rmse_cv <- function(cv_fit, predicted) {
 #' @param cv_fit A tibble with 4 columns: splits, id, type and .preds.
 #' .preds is also a tibble with 3 columns: geometry, {{variable to predict}}
 #' (eg: tmin) and .pred
-#' @param cv_rmse
+#' @param cv_rmse cross validation rmse
 #' @return ggplot map of RMSE by cross validation type
 #' @export
 map_rmse_cv <- function(cv_fit, cv_rmse) {

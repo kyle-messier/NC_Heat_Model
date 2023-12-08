@@ -1,5 +1,3 @@
-library(data.table)
-
 #' Create train and test dataset
 #' by randomly sampling in space and time
 #'

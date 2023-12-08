@@ -129,8 +129,7 @@ add_canopy_h <- function(canopy_h_path, sp_vect) {
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "build_fp"
 #' @export
-add_build_fp <- function(
-    build_fp_path, sp_vect) {
+add_build_fp <- function(build_fp_path, sp_vect) {
   if (!file.exists(build_fp_path)) {
     stop("build_fp_path does not exist")
   }
@@ -192,14 +191,14 @@ add_build_h <- function(
 
 #' Compute land cover classes ratio in circle buffers arount points
 #'
-#' @param spvect terra::SpatVector of points geometry
+#' @param sp_vect terra::SpatVector of points geometry
 #' @param nlcd national land cover dataset as a terra::SpatRaster
 #' @param buf_radius numeric giving the radius of buffer around points
 #' @export
-add_nlcd_class_ratio <- function(spvect, nlcd_path, buf_radius = 150) {
+add_nlcd_class_ratio <- function(nlcd_path, sp_vect, buf_radius = 150) {
   nlcd <- terra::rast(nlcd_path)
   # create circle buffers with 150m radius
-  bufs_pol <- terra::buffer(spvect, width = buf_radius)
+  bufs_pol <- terra::buffer(sp_vect, width = buf_radius)
   bufs_pol <- sf::st_as_sf(bufs_pol)
   # crop nlcd raster
   extent <- terra::ext(bufs_pol)
@@ -211,20 +210,24 @@ add_nlcd_class_ratio <- function(spvect, nlcd_path, buf_radius = 150) {
     stack_apply = TRUE,
     progress = FALSE
   )
-  new_spvect <- nlcd_at_bufs[names(nlcd_at_bufs)[grepl(
+  new_sp_vect <- nlcd_at_bufs[names(nlcd_at_bufs)[grepl(
     "frac_",
     names(nlcd_at_bufs)
   )]]
-  new_spvect <- cbind(spvect, new_spvect)
-  return(new_spvect)
+  new_sp_vect <- cbind(sp_vect, new_sp_vect)
+  return(new_sp_vect)
 }
 
 #' Add corresponding NC county to a datatable containing lat, lon
 #'
+#' @param county_path Character path to county shp
 #' @param datatable A data.table object with columns "lat", "lon"
 #' @param crs A character containing the crs of spatial data
 #' @returns same datatable object with "county" columns
-add_nc_county <- function(nc_poly_path, datatable, crs) {
+add_county <- function(county_path, datatable, crs) {
+  if (!file.exists(county_path)) {
+    stop("county_path does not exist")
+  }
   if (class(crs) != "character") {
     stop("crs is not a character")
   }
@@ -237,14 +240,13 @@ add_nc_county <- function(nc_poly_path, datatable, crs) {
   if (!("lon" %in% colnames(datatable))) {
     stop("datatable does not contain lon column")
   }
-  nc_borders <- terra::vect(nc_poly_path)
-  if (!same.crs(nc_borders, crs)) {
-    nc_borders <- terra::project(nc_borders, crs)
+  cty_borders <- terra::vect(county_path)
+  if (!same.crs(cty_borders, crs)) {
+    cty_borders <- terra::project(cty_borders, crs)
   }
-  loc <- unique(datatable[, c("lon", "lat")])
-  loc <- terra::vect(loc, geom = c("lon", "lat"),
-                     crs = crs, keepgeom = TRUE)
-  loc$county <- terra::extract(nc_borders[, c("County")], loc)$County
+  loc <- unique(datatable[, c("lon", "lat")]) %>%
+    terra::vect(geom = c("lon", "lat"), crs = crs, keepgeom = TRUE)
+  loc$county <- terra::extract(cty_borders[, c("County")], loc)$County
   datatable <- merge(datatable,
     loc[, c("lon", "lat", "county")],
     by = c("lon", "lat")

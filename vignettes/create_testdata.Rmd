@@ -45,6 +45,11 @@ writeRaster(dem_rtp, "../tests/testdata/rtp_dem.tif", overwrite = TRUE)
 build_h <- vect(files$build_h)
 build_h_rtp <- rtp_subset(build_h)
 writeVector(build_h_rtp, "../tests/testdata/rtp_build_h.shp", overwrite = TRUE)
+
+nc_cty <- vect(paste0("../input/NC_county_boundary/",
+                      "North_Carolina_State_and_County_Boundary_Polygons.shp"))
+rtp_cty <- rtp_subset(nc_cty)
+writeVector(rtp_cty, "../tests/testdata/rtp_counties.shp", overwrite = TRUE)
 ```
 
 Empty small spatVect in RTP area 

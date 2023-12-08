@@ -54,7 +54,7 @@ test_that("Check add_build_fp works", {
   d <- data.frame(lon = c(0, 10), lat = c(0, 10))
   x <- vect(d, geom = c("lon", "lat"), crs = "epsg:5070")
   build_fp_path <- "../testdata/rtp_build_fp.tif"
-  expect_error(add_build_fp(build_fp_path, sp_vect = x), 
+  expect_error(add_build_fp(build_fp_path, sp_vect = x),
                "NAs found in build_fp column")
 
   # -- 2nd example: build_fp file does not exist
@@ -66,7 +66,7 @@ test_that("Check add_build_fp works", {
 
   # -- 3rd example: everything works properly
   expect_no_error(add_build_fp(build_fp_path, sp_vect = sp_vect))
-  expect_contains(names(add_build_fp(build_fp_path, 
+  expect_contains(names(add_build_fp(build_fp_path,
                                      sp_vect = sp_vect)), "build_fp")
 })
 

@@ -1,13 +1,11 @@
-
-era5_file_nc <- "../input/era5_hourly_reanalysis_20220531_20220930.nc"
-
 #' Convert nc file with ERA5 data to a datatable
 #'
 #' @param era5_file a character path to era5 file
 #' with longitude, latitude, time and t2m covariates
 #' @returns a datatable with columns geom, date, lon and lat in EPSG:4326
+#' @import data.table
 #' @export
-convert_era5nc_to_dt <- function(era5_file = era5_file_nc) {
+convert_era5nc_to_dt <- function(era5_file) {
   era5 <- ncdf4::nc_open(era5_file)
   lon <- ncdf4::ncvar_get(era5, "longitude")
   lat <- ncdf4::ncvar_get(era5, "latitude")
@@ -35,7 +33,7 @@ convert_era5nc_to_dt <- function(era5_file = era5_file_nc) {
 #' @returns a character
 assign_date_tn_wmo <- function(x_edt) {
   return(ifelse(hour(x_edt) >= 18,
-                substr(x_edt + days(1), 0, 10),
+                substr(x_edt + lubridate::days(1), 0, 10),
                 substr(x_edt, 0, 10)))
 }
 
@@ -46,7 +44,7 @@ assign_date_tn_wmo <- function(x_edt) {
 #' @returns a character
 assign_date_7am <- function(x_edt) {
   return(ifelse(hour(x_edt) >= 7, substr(x_edt, 0, 10),
-    substr(x_edt - days(1), 0, 10)
+    substr(x_edt - lubridate::days(1), 0, 10)
   ))
 }
 
@@ -66,9 +64,10 @@ assign_date_12am <- function(x_edt) {
 compute_tn <- function(dt) {
   # EDT = Eastern Daylight Time (consider clock-changing)
   # EST = Eastern Standard Time
+  tz <- "America/New_York"
   dt <- dt[, ":="(time_edt = as.POSIXct(
-                                        with_tz(time,
-                                                tzone = "America/New_York"),
+                                        lubridate::with_tz(time,
+                                                           tzone = tz),
                                         format = "%Y-%m-%d %H:%M:%s"))]
 
   dt <- dt[, ":="(datetnwmo = as.character(assign_date_tn_wmo("time")),
@@ -97,7 +96,7 @@ compute_tn <- function(dt) {
   colnames(dt_tn)[colnames(dt_tn) == "datetnwmo"] <- "date"
   dt_tn$lon <- as.numeric(dt_tn$lon)
   dt_tn$lat <- as.numeric(dt_tn$lat)
-  dt_tn$date <- ymd(dt_tn$date)
+  dt_tn$date <- lubridate::ymd(dt_tn$date)
   # remove first and last date because computation might be erroneous
   dt_tn <- dt_tn[!(date %in% as.Date(range(dt$time)))]
   return(dt_tn)
@@ -107,8 +106,10 @@ compute_tn <- function(dt) {
 #'
 #' @param x a Date object
 #' @returns a character
-datetxwmo <- function(x) {
-  return(ifelse(hour(x) < 6, substr(x - days(1), 0, 10), substr(x, 0, 10)))
+assign_datetxwmo <- function(x) {
+  return(ifelse(hour(x) < 6,
+                substr(x - lubridate::days(1), 0, 10),
+                substr(x, 0, 10)))
 }
 
 #' Compute daily maximum temperature with different definitions of day
@@ -119,10 +120,11 @@ datetxwmo <- function(x) {
 compute_tx <- function(dt) {
   # EDT = Eastern Daylight Time (consider clock-changing)
   # EST = Eastern Standard Time
-  dt <- dt[, ":="(time_edt = as.POSIXct(with_tz(time,
-                                                tzone = "America/New_York"),
+  tz <- "America/New_York"
+  dt <- dt[, ":="(time_edt = as.POSIXct(lubridate::with_tz(time,
+                                                           tzone = tz),
                                         format = "%Y-%m-%d %H:%M:%s"))]
-  dt <- dt[, ":="(datetxwmo = as.character(datetxwmo(time)),
+  dt <- dt[, ":="(datetxwmo = as.character(assign_datetxwmo(time)),
                   date7am = as.character(assign_date_7am("time_edt")),
                   date12am = as.character(assign_date_12am("time_edt")))]
   dt_txwmo <- dt[, .(txwmo = max("t2m")),
@@ -146,7 +148,7 @@ compute_tx <- function(dt) {
   colnames(dt_tx)[colnames(dt_tx) == "datetxwmo"] <- "date"
   dt_tx$lon <- as.numeric(dt_tx$lon)
   dt_tx$lat <- as.numeric(dt_tx$lat)
-  dt_tx$date <- ymd(dt_tx$date)
+  dt_tx$date <- lubridate::ymd(dt_tx$date)
   # remove first and last date because computation might be erroneous
   dt_tx <- dt_tx[!(date %in% as.Date(range(dt$time)))]
   return(dt_tx)

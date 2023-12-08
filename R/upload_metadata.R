@@ -1,16 +1,16 @@
-list_covar_nc <- function(covar_folder){
+list_covar_nc <- function(covar_folder) {
   return(list(
-    imp = paste0(covar_folder, "NC_imperviousness_2019.tif"), 
+    imp = paste0(covar_folder, "NC_imperviousness_2019.tif"),
     dem = paste0(covar_folder, "NC-DEM-agg.tif"),
     tcc = paste0(covar_folder, "NC_tree-canopy-cover_2021.tif"),
     canopy_h = paste0(covar_folder, "NC_forest_height_2019_crs-wgs84.tif"),
     build_h = paste0(covar_folder,
-                       "NC_building-height-by-block/",
-                       "NC_building-heights-by-block.shp"),
-    build_fp = paste0(covar_folder, 
-                        "NC_building-footprints/NorthCarolina_sum.tif"),
+                     "NC_building-height-by-block/",
+                     "NC_building-heights-by-block.shp"),
+    build_fp = paste0(covar_folder,
+                      "NC_building-footprints/NorthCarolina_sum.tif"),
     era5 = paste0(covar_folder,
-                    "era5_daily_reanalysis_2022-05-02_2022-09-29.csv")
+                  "era5_daily_reanalysis_2022-05-02_2022-09-29.csv")
   ))
 }
 

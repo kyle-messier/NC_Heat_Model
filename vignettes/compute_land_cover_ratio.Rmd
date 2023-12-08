@@ -4,18 +4,6 @@ output: html_document
 date: "2023-11-09"
 ---
 
-Load function
-
-```{r, message=F}
-pkgs <- c(
-  "terra", "tidyterra", "exactextractr", "sf",
-  "dplyr", "fastDummies", "viridis", "ggplot2",
-  "fastDummies"
-)
-sapply(pkgs, library, character.only = TRUE)
-source("../R/create_prediction_grid.R")
-```
-
 Open NC shapefile
 
 ```{r}
@@ -138,8 +126,8 @@ compute_ndld_class_ratio0 <- function(spvect, nlcd, width = 150) {
 
   # turn nlcd variable to dummies
   nlcd_cropped_df <- as.data.frame(nlcd_cropped, xy = TRUE)
-  nlcd_cropped_df <- dummy_cols(nlcd_cropped_df)
-  nlcd_cropped <- as_spatraster(nlcd_cropped_df,
+  nlcd_cropped_df <- fastDummies::dummy_cols(nlcd_cropped_df)
+  nlcd_cropped <- tidyterra::as_spatraster(nlcd_cropped_df,
     xycols = c(1, 2),
     crs = crs(nlcd_cropped)
   )

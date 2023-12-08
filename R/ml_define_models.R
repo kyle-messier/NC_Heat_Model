@@ -35,6 +35,7 @@ compute_preds_lm_cv <- function(sp_samples, formula) {
   # -- each split of sp_samples has its own .preds with
   # -- 3 columns: geometry, {{variable to predict}} (eg: tmin) and .pred
   cv_fit <- sp_samples %>%
-    dplyr::mutate(.preds = purr::map("splits", compute_preds_lm, formula = formula))
+    dplyr::mutate(.preds = purr::map("splits", compute_preds_lm,
+                                     formula = formula))
   return(cv_fit)
 }

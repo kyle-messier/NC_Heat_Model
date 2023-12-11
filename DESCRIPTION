@@ -19,6 +19,7 @@ Imports:
   ggplot2,
   scatterpie,
   sftime,
+  spatialsample,
   rlang,
   ncdf4
 Suggests: 

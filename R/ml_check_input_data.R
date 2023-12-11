@@ -25,7 +25,6 @@ check_obs <- function(data, metadata, predictors, predicted) {
 #' @param metadata a list of characters with obs info
 #' (eg: county, date, lat, lon, ...)
 #' @param predictors a list of characters names of predictors
-#' @import emojifont
 #' @export
 check_pred_grid <- function(data, metadata, predictors) {
   if (sum(!(metadata %in% colnames(data))) != 0) {

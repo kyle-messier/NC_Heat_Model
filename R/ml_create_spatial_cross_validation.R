@@ -10,7 +10,6 @@
 #' Equivalently: analysis(sp_samples$splits[[j]]) or assessment(...)
 #' When doing head(sp_samples): [n_train/n_test]
 #' @import spatialsample
-#' @import yardstick
 #' @export
 create_sp_fold <- function(obs_sf) {
   # -- uses k-means clustering

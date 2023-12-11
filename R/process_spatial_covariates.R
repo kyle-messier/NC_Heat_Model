@@ -7,7 +7,7 @@
 project_imp <- function(crs_dest, crs_name) {
   # imperviousness is by default in wgs84 (epsg:4326)
   imp <- terra::rast("../input/NC_imperviousness_2019.tif")
-  if (!terra::same.crs(crs(imp), crs_dest)) {
+  if (!terra::same.crs(terra::crs(imp), crs_dest)) {
     imp_proj <- terra::project(imp, crs_dest)
     terra::writeRaster(imp_proj,
       filename = paste0(

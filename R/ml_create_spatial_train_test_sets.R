@@ -3,7 +3,7 @@
 #'
 #' @param obs A datatable of observations
 #' @returns a list with train and test datatables
-#' (each row corresponds to a lat, lon, date)
+#' (each row corresponds to a lat, lon, time)
 create_sets_rndst <- function(obs) {
   if (!("data.table" %in% class(obs))) {
     stop("obs is not a data.table")
@@ -28,7 +28,7 @@ create_sets_rndst <- function(obs) {
 #'
 #' @param obs A datatable of observations
 #' @returns a list with train and test datatables
-#' (each row corresponds to a lat, lon, date)
+#' (each row corresponds to a lat, lon, time)
 create_sets_rnds <- function(obs) {
   station <- NULL
   if (!("data.table" %in% class(obs))) {
@@ -53,30 +53,30 @@ create_sets_rnds <- function(obs) {
 
 
 #' Create train and test dataset
-#' by removing specific dates
+#' by removing specific times
 #'
 #' @param obs A datatable of observations
-#' @param test_dates A vector of dates
+#' @param test_times A vector of times
 #' @returns a list with train and test datatables
-#' (each row corresponds to a lat, lon, date)
-create_sets_t <- function(obs, test_dates) {
+#' (each row corresponds to a lat, lon, time)
+create_sets_t <- function(obs, test_times) {
   if (!("data.table" %in% class(obs))) {
     stop("obs is not a data.table")
   }
   if (nrow(obs) == 0) {
     stop("obs is empty")
   }
-  if (!("date" %in% colnames(obs))) {
-    stop("date is not in obs colnames")
+  if (!("time" %in% colnames(obs))) {
+    stop("time is not in obs colnames")
   }
-  if (class(test_dates) != "Date") {
-    stop("test_dates is not a Date")
+  if (class(test_times) != "Date") {
+    stop("test_times is not a Date")
   }
-  if (sum(!(test_dates %in% unique(obs$date))) != 0) {
-    stop("some of test_dates are not in obs")
+  if (sum(!(test_times %in% unique(obs$time))) != 0) {
+    stop("some of test_times are not in obs")
   }
-  train <- obs[!(date %in% test_dates), ]
-  test <- obs[date %in% test_dates, ]
+  train <- obs[!(time %in% test_times), ]
+  test <- obs[time %in% test_times, ]
   if (nrow(train) == 0) {
     warning("train sample is empty")
   }
@@ -89,7 +89,7 @@ create_sets_t <- function(obs, test_dates) {
 #' @param obs A datatable of observations
 #' @param test_counties A vector of county names
 #' @returns a list with train and test datatables
-#' (each row corresponds to a lat, lon, date)
+#' (each row corresponds to a lat, lon, time)
 create_sets_s <- function(obs, test_counties) {
   county <- NULL
   if (!("data.table" %in% class(obs))) {
@@ -118,7 +118,7 @@ create_sets_s <- function(obs, test_counties) {
 #' @param obs A datatable of observations
 #' @param test_net A vector of network names
 #' @returns a list with train and test datatables
-#' (each row corresponds to a lat, lon, date)
+#' (each row corresponds to a lat, lon, time)
 create_sets_net <- function(obs, test_net) {
   network <- NULL
   if (!("data.table" %in% class(obs))) {

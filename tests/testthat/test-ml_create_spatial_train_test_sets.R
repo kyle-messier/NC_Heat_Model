@@ -8,14 +8,7 @@ test_that("Check create_sets_rndst works", {
   expect_error(create_sets_rndst(obs), "obs is empty")
 
   # -- 3rd example: sounds good, check test and train dimensions, class
-  obs <- fread(paste0(
-    "../input/",
-    "NC-monitors-dailysummary-",
-    "20220601-20220831",
-    "-space-time-covariates.csv"
-  ))
-  p <- c(as.Date("2022-08-01"), as.Date("2022-08-02"))
-  obs <- obs[date %in% p, ]
+  obs <- fread("../testdata/rtp_points.csv")
   sets <- create_sets_rndst(obs)
   train <- sets$train
   test <- sets$test
@@ -35,14 +28,7 @@ test_that("Check create_sets_rnds works", {
   expect_error(create_sets_rnds(obs), "obs is empty")
 
   # -- 3rd example: sounds good, check test and train dimensions, class
-  obs <- fread(paste0(
-    "../input/",
-    "NC-monitors-dailysummary-",
-    "20220601-20220831",
-    "-space-time-covariates.csv"
-  ))
-  p <- c(as.Date("2022-08-01"), as.Date("2022-08-02"))
-  obs <- obs[date %in% p, ]
+  obs <- fread("../testdata/rtp_points.csv")
   sets <- create_sets_rnds(obs)
   train <- sets$train
   test <- sets$test
@@ -59,48 +45,43 @@ test_that("Check create_sets_rnds works", {
 test_that("Check create_sets_t works", {
   # -- 1st example: obs is not a data.table
   obs <- "hello"
-  test_dates <- as.Date("2022-08-01")
-  expect_error(create_sets_t(obs, test_dates), "obs is not a data.table")
+  test_times <- as.Date("2022-08-01")
+  expect_error(create_sets_t(obs, test_times), "obs is not a data.table")
 
   # -- 2nd example: obs is empty
   obs <- data.table()
-  expect_error(create_sets_t(obs, test_dates), "obs is empty")
+  expect_error(create_sets_t(obs, test_times), "obs is empty")
 
-  # -- 3rd example: test_dates is not a "Date"
-  test_dates <- "hello"
-  obs <- fread(paste0(
-    "../input/",
-    "NC-monitors-dailysummary-",
-    "20220601-20220831",
-    "-space-time-covariates.csv"
-  ))
-  expect_error(create_sets_t(obs, test_dates), "test_dates is not a Date")
+  # -- 3rd example: test_times is not a "Date"
+  test_times <- "hello"
+  obs <- fread("../testdata/rtp_points.csv")
+  expect_error(create_sets_t(obs, test_times), "test_times is not a Date")
 
-  # -- 4th example: some of test_dates are not in obs
-  test_dates <- c(as.Date("2022-08-01"), as.Date("2100-01-01"))
+  # -- 4th example: some of test_times are not in obs
+  test_times <- c(as.Date("2022-08-01"), as.Date("2100-01-01"))
   expect_error(
-    create_sets_t(obs, test_dates),
-    "some of test_dates are not in obs"
+    create_sets_t(obs, test_times),
+    "some of test_times are not in obs"
   )
 
   # -- 5th example: training set is empty
-  test_dates <- c(as.Date("2022-08-01"), as.Date("2022-08-02"))
+  test_times <- c(as.Date("2022-08-01"), as.Date("2022-08-02"))
   expect_warning(
-    create_sets_t(obs[date %in% test_dates, ], test_dates),
+    create_sets_t(obs[time %in% test_times, ], test_times),
     "train sample is empty"
   )
 
   # -- 6th example: sounds good, check test and train dimensions, class
-  sets <- create_sets_t(obs, test_dates)
+  sets <- create_sets_t(obs, test_times)
   train <- sets$train
   test <- sets$test
   expect_equal(nrow(obs), nrow(test) + nrow(train))
   expect_equal(class(obs), class(train))
   expect_equal(colnames(obs), colnames(test))
   expect_equal(
-    sum(unique(train$date) %in% unique(test$date)),
+    sum(unique(train$time) %in% unique(test$time)),
     0
-  ) # means all dates are different in each sets
+  ) # means all times are different in each sets
 })
 
 
@@ -116,13 +97,7 @@ test_that("Check create_sets_s works", {
 
   # -- 3rd example: test_counties is not a "character"
   test_counties <- 3
-  obs <- fread(paste0(
-    "../input/",
-    "NC-monitors-dailysummary-",
-    "20220601-20220831",
-    "-space-time-covariates.csv"
-  ))
-  obs <- add_nc_county(obs, "epsg:4326")
+  obs <- fread("../testdata/rtp_points.csv")
   expect_error(
     create_sets_s(obs, test_counties),
     "test_counties is not a character or is empty"
@@ -136,13 +111,14 @@ test_that("Check create_sets_s works", {
   )
 
   # -- 5th example: training set is empty
-  test_counties <- c("Durham", "Orange")
+  test_counties <- unique(obs[, county])
   expect_warning(
     create_sets_s(obs[county %in% test_counties, ], test_counties),
     "train sample is empty"
   )
 
   # -- 6th example: sounds good, check test and train dimensions, class
+  test_counties <- "Durham"
   sets <- create_sets_s(obs, test_counties)
   train <- sets$train
   test <- sets$test
@@ -160,7 +136,7 @@ test_that("Check create_sets_s works", {
 test_that("Check create_sets_net works", {
   # -- 1st example: obs is not a data.table
   obs <- "hello"
-  test_net <- "ECONET"
+  test_net <- "net1"
   expect_error(create_sets_net(obs, test_net), "obs is not a data.table")
 
   # -- 2nd example: obs is empty
@@ -169,12 +145,7 @@ test_that("Check create_sets_net works", {
 
   # -- 3rd example: test_net is not a "character"
   test_net <- 3
-  obs <- fread(paste0(
-    "../input/",
-    "NC-monitors-dailysummary-",
-    "20220601-20220831",
-    "-space-time-covariates.csv"
-  ))
+  obs <- fread("../testdata/rtp_points.csv")
   expect_error(
     create_sets_net(obs, test_net),
     "test_net is not a character or is empty"
@@ -188,13 +159,14 @@ test_that("Check create_sets_net works", {
   )
 
   # -- 5th example: training set is empty
-  test_net <- c("ECONET")
+  test_net <- unique(obs[, network])
   expect_warning(
     create_sets_net(obs[network %in% test_net, ], test_net),
     "train sample is empty"
   )
 
   # -- 6th example: sounds good, check test and train dimensions, class
+  test_net <- "net1"
   sets <- create_sets_net(obs, test_net)
   train <- sets$train
   test <- sets$test

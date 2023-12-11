@@ -1,5 +1,3 @@
-library(emojifont)
-
 #' Check observation dataset content
 #'
 #' @param data A datatable of observations
@@ -7,6 +5,7 @@ library(emojifont)
 #' (eg: county, date, lat, lon, ...)
 #' @param predictors a list of characters names of predictors
 #' @param predicted a character with the name of the predicted variable
+#' @import emojifont
 #' @export
 check_obs <- function(data, metadata, predictors, predicted) {
   if (sum(!(metadata %in% colnames(data))) != 0) {
@@ -27,6 +26,7 @@ check_obs <- function(data, metadata, predictors, predicted) {
 #' @param metadata a list of characters with obs info
 #' (eg: county, date, lat, lon, ...)
 #' @param predictors a list of characters names of predictors
+#' @import emojifont
 #' @export
 check_pred_grid <- function(data, metadata, predictors) {
   if (sum(!(metadata %in% colnames(data))) != 0) {

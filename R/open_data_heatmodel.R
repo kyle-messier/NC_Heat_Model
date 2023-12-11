@@ -1,5 +1,3 @@
-library(data.table)
-
 #' Open prediction grid for a given period
 #'
 #' @param period A vector of "Date" objects

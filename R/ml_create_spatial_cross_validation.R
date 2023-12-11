@@ -1,6 +1,3 @@
-library(spatialsample)
-library(yardstick)
-
 #' Create several types of spatial folds for cross validation
 #' (with kmeans spatial clusters, by rectangle blocks, by data source,
 #' or randomly in space)
@@ -12,6 +9,8 @@ library(yardstick)
 #' as.data.frame(sp_samples$splits[[j]], data="assessment") for test
 #' Equivalently: analysis(sp_samples$splits[[j]]) or assessment(...)
 #' When doing head(sp_samples): [n_train/n_test]
+#' @import spatialsample
+#' @import yardstick
 #' @export
 create_sp_fold <- function(obs_sf) {
   # -- uses k-means clustering

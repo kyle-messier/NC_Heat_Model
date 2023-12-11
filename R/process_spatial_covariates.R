@@ -1,5 +1,3 @@
-library(terra)
-
 #' Project and save imperviousness data to a new crs
 #' (used for projection to EPSG:5070 previously to prediction grid creation
 #'

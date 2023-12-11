@@ -1,5 +1,3 @@
-library(data.table) # -- for large flat datasets
-
 #' Create a new type of spacetime object (stdtobj)
 #'
 #' @param stdt a data.table with lat, lon, time columns

@@ -5,7 +5,6 @@
 #' (eg: county, date, lat, lon, ...)
 #' @param predictors a list of characters names of predictors
 #' @param predicted a character with the name of the predicted variable
-#' @import emojifont
 #' @export
 check_obs <- function(data, metadata, predictors, predicted) {
   if (sum(!(metadata %in% colnames(data))) != 0) {
@@ -17,7 +16,7 @@ check_obs <- function(data, metadata, predictors, predicted) {
   if (!(predicted %in% colnames(data)) != 0) {
     stop("predicted variable is missing")
   }
-  message("observations content: ", emojifont::emoji("white_check_mark"))
+  message("observations content checked")
 }
 
 #' Check prediction grid content
@@ -35,5 +34,5 @@ check_pred_grid <- function(data, metadata, predictors) {
   if (sum(!(predictors %in% colnames(data))) != 0) {
     stop("some predictors columns are missing")
   }
-  message("prediction grid content: ", emojifont::emoji("white_check_mark"))
+  message("prediction grid content checked")
 }

@@ -1,35 +1,25 @@
-#' Project and save imperviousness data to a new crs
-#' (used for projection to EPSG:5070 previously to prediction grid creation
+#' Aggregate raster and store it in a new file (useful for dem)
 #'
-#' @param crs_dest A character with the crs of destination
-#' @param crs_name A character for the crs without weird characters
-#' to concat to file name
-project_imp <- function(crs_dest, crs_name) {
-  # imperviousness is by default in wgs84 (epsg:4326)
-  imp <- terra::rast("../input/NC_imperviousness_2019.tif")
-  if (!terra::same.crs(terra::crs(imp), crs_dest)) {
-    imp_proj <- terra::project(imp, crs_dest)
-    terra::writeRaster(imp_proj,
-      filename = paste0(
-        "../input/",
-        "NC_imperviousness_2019_",
-        crs_name,
-        ".tif"
-      ),
+#' @param in_filepath A character path to data file with high resolution
+#' @param out_filepath A character path to the folder where the aggregate file 
+#' will be stored
+agg_rast <- function(in_filepath, out_filepath, agg_fact = 30) {
+  raw <- terra::rast(in_filepath)
+  agg <- terra::aggregate(raw, fact = agg_fact, fun = "median") %>%
+    terra::writeRaster(
+      filename = paste0(out_filepath),
       overwrite = TRUE
     )
-  }
+  return(agg)
 }
 
-#' Aggregate digital elevation model (~1m to ~30m)
+
+#' Subset a polygon area from a SpatRaster or a SpatVector
 #'
-#' @param dem_path A path to dem file with high resolution
-agg_dem <- function(dem_path = "../input/NC-DEM.tif") {
-  dem <- terra::rast(dem_path)
-  dem_agg <- terra::aggregate(dem, fact = 30, fun = "median")
-  terra::writeRaster(dem_agg,
-    filename = "../input/NC-DEM-agg.tif",
-    overwrite = TRUE
-  )
-  return(dem_agg)
+#' @param sp a SpatRaster or a SpatVector
+#' @param poly a SpatVector with polygon geometry 
+subset_area <- function(sp, poly) {
+  poly_proj <- terra::project(poly, terra::crs(sp))
+  crop_sp <- terra::crop(sp, poly_proj)
+  return(crop_sp)
 }

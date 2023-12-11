@@ -7,7 +7,7 @@ date: "2023-12-07"
 Load covariate file names
 
 ```{r}
-files <- list_covar_nc(input_path = "../input/")
+files <- list_covar_nc(covar_folder = "../input/")
 ```
 
 Extract RTP covariates 
@@ -47,6 +47,10 @@ writeRaster(dem_rtp, "../tests/testdata/rtp_dem.tif", overwrite = TRUE)
 build_h <- vect(files$build_h)
 build_h_rtp <- rtp_subset(build_h)
 writeVector(build_h_rtp, "../tests/testdata/rtp_build_h.shp", overwrite = TRUE)
+
+nlcd <- rast(files$nlcd)
+nlcd_rtp <- rtp_subset(nlcd)
+writeRaster(nlcd_rtp, "../tests/testdata/rtp_nlcd.tif", overwrite = TRUE)
 
 nc_cty <- vect(paste0("../input/NC_county_boundary/",
                       "North_Carolina_State_and_County_Boundary_Polygons.shp"))

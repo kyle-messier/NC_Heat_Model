@@ -226,7 +226,7 @@ add_county <- function(county_path, datatable, crs) {
     stop("datatable does not contain lon column")
   }
   cty_borders <- terra::vect(county_path)
-  if (!same.crs(cty_borders, crs)) {
+  if (!terra::same.crs(cty_borders, crs)) {
     cty_borders <- terra::project(cty_borders, crs)
   }
   loc <- unique(datatable[, c("lon", "lat")]) %>%
@@ -252,7 +252,7 @@ add_era5_vect <- function(data_vect, era5_path) {
     HeatModel::create_stdtobj(crs_stdt = "EPSG:4326") %>%
     HeatModel::convert_stdt_spatrastdataset()
   # empty prediction SpatVector
-  new_data_vect <- terra::vect(geom(data_vect)[, c("x", "y")],
+  new_data_vect <- terra::vect(terra::geom(data_vect)[, c("x", "y")],
     type = "points",
     crs = terra::crs(data_vect)
   )
@@ -284,7 +284,7 @@ add_era5_rast <- function(data_rast, era5_path = era5) {
     HeatModel::convert_stdt_spatrastdataset()
   data_vect <- terra::as.points(data_rast)
   # empty prediction SpatVector
-  new_data_vect <- terra::vect(geom(data_vect)[, c("x", "y")],
+  new_data_vect <- terra::vect(terra::geom(data_vect)[, c("x", "y")],
     type = "points",
     crs = terra::crs(data_vect)
   )

@@ -158,6 +158,7 @@ convert_starray_stdt <- function(starrayobj) {
 #' @returns a stdtobj
 #' @export
 convert_stobj_to_stdt <- function(stobj) {
+  geometry <- NULL
   format <- class(stobj)[[1]]
   if (format == "sf" || format == "sftime") {
     if (any(!(c("geometry", "time") %in% colnames(stobj)))) {
@@ -172,13 +173,13 @@ convert_stobj_to_stdt <- function(stobj) {
     if (!("time") %in% names(stobj)) {
       stop("stobj does not contain time column")
     }
-    crs_dt <- crs(stobj)
+    crs_dt <- terra::crs(stobj)
     stdf <- as.data.frame(stobj, geom = "XY")
     names(stdf)[names(stdf) == "x"] <- "lon"
     names(stdf)[names(stdf) == "y"] <- "lat"
     stdt <- data.table::as.data.table(stdf)
   } else if (format == "SpatRasterDataset") {
-    crs_dt <- crs(stobj)
+    crs_dt <- terra::crs(stobj)
     stdf <- as.data.frame(stobj[1], xy = TRUE)
     colnames(stdf)[1] <- "lon"
     colnames(stdf)[2] <- "lat"
@@ -221,7 +222,7 @@ convert_stdt_spatvect <- function(stdtobj) {
   if (!is_stdtobj(stdtobj)) {
     stop("stdtobj is not an stdt object")
   }
-  vect_obj <- vect(stdtobj$stdt,
+  vect_obj <- terra::vect(stdtobj$stdt,
     geom = c("lon", "lat"),
     crs = stdtobj$crs_stdt,
     keepgeom = FALSE
@@ -352,6 +353,7 @@ create_sftime <- function(datatable, crs) {
 #' @returns same datatable object with "lon", "lat",
 #' "lon_ori", "lat_ori" columns
 project_dt <- function(datatable, crs_ori, crs_dest) {
+  geometry <- NULL
   if (class(crs_ori) != "character" || class(crs_dest) != "character") {
     stop("crs are not characters")
   }

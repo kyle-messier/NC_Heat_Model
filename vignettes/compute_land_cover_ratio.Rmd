@@ -129,7 +129,7 @@ compute_ndld_class_ratio0 <- function(spvect, nlcd, width = 150) {
   nlcd_cropped_df <- fastDummies::dummy_cols(nlcd_cropped_df)
   nlcd_cropped <- tidyterra::as_spatraster(nlcd_cropped_df,
     xycols = c(1, 2),
-    crs = crs(nlcd_cropped)
+    crs = terra::crs(nlcd_cropped)
   )
 
   # ratio of each nlcd class per buffer

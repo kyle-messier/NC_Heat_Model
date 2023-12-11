@@ -11,7 +11,7 @@ create_pred_rds <- function(borders_path,
   # create spat raster in borders
   borders <- terra::vect(borders_path)
   imp <- terra::rast(covar_path$imp)
-  borders_proj <- terra::project(borders, crs(imp))
+  borders_proj <- terra::project(borders, terra::crs(imp))
   imp <- terra::mask(borders_proj)
 
   # aggregation at 300m
@@ -55,16 +55,16 @@ create_pred_rds <- function(borders_path,
   era5_stdt <- create_stdtobj(era5, "EPSG:4326")
   era5_rds <- convert_stdt_spatrastdataset(era5_stdt)
   # empty prediction SpatVector
-  new_pred_vect <- vect(geom(pred_vect)[, c("x", "y")],
+  new_pred_vect <- terra::vect(terra::geom(pred_vect)[, c("x", "y")],
     type = "points",
-    crs = crs(pred_vect)
+    crs = terra::crs(pred_vect)
   )
   # extract each daily covariate based on era5 and convert to raster
   pred_rds_era5 <- list()
   for (i in 2:7) {
     pred_rds_era5[[i - 1]] <- terra::project(
       new_pred_vect,
-      crs(era5_rds[[i]])
+      terra::crs(era5_rds[[i]])
     ) %>%
       terra::extract(x = era5_rds[[i]], bind = TRUE) %>%
       terra::project(terra::crs(new_pred_vect)) %>%
@@ -84,7 +84,7 @@ create_pred_rds <- function(borders_path,
       rast_date[[era5_cov]] <- pred_rds_era5[era5_cov][date]
     }
     list_rast_dates[[date]] <- rast_date
-    writeRaster(rast_date,
+    terra::writeRaster(rast_date,
                 filename = paste0(output_path, "pred_grid_", date, ".tif"))
   }
 }

@@ -14,13 +14,13 @@
 #' @export
 create_sp_fold <- function(obs_sf) {
   # -- uses k-means clustering
-  cluster_llo <- spatial_clustering_cv(obs_sf, v = 10)
-  block_llo <- spatial_block_cv(obs_sf, v = 10)
-  net_llo <- spatial_leave_location_out_cv(obs_sf,
+  cluster_llo <- spatialsample::spatial_clustering_cv(obs_sf, v = 10)
+  block_llo <- spatialsample::spatial_block_cv(obs_sf, v = 10)
+  net_llo <- spatialsample::spatial_leave_location_out_cv(obs_sf,
     group = "network",
     v = 6
   )
-  rnd_llo <- spatial_leave_location_out_cv(obs_sf,
+  rnd_llo <- spatialsample::spatial_leave_location_out_cv(obs_sf,
     group = "station",
     v = 10
   )

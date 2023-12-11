@@ -50,12 +50,12 @@ Create a function to map rasters with NC borders
 ```{r}
 my_map_raster <- function(raster, date, title) {
   plot <- ggplot() +
-    geom_spatraster(data = raster) +
+    tidyterra::geom_spatraster(data = raster) +
     geom_sf(
       data = st_as_sf(nc_borders), aes(geometry = geometry),
       colour = "white", linewidth = .3, fill = NA
     ) +
-    scale_fill_whitebox_c(
+    tidyterra::scale_fill_whitebox_c(
       palette = "muted",
       labels = scales::label_number(suffix = "º"),
       n.breaks = 12,
@@ -66,13 +66,13 @@ my_map_raster <- function(raster, date, title) {
       title = title,
       subtitle = date
     ) +
-    annotation_scale(
+    ggspatial::annotation_scale(
       location = "bl", pad_x = unit(1, "cm"),
       pad_y = unit(1, "cm"),
       height = unit(0.30, "cm"),
       text_cex = 1
     ) +
-    annotation_north_arrow(
+    ggspatial::annotation_north_arrow(
       location = "br",
       which_north = "true",
       pad_x = unit(0.2, "cm"),
@@ -94,7 +94,7 @@ my_map_raster <- function(raster, date, title) {
 my_map_raster_points <- function(raster, points, points.fill, date, title) {
   fill <- enquo(points.fill)
   plot <- ggplot() +
-    geom_spatraster(data = raster) +
+    tidyterra::geom_spatraster(data = raster) +
     geom_sf(
       data = points,
       aes(geometry = geometry, fill = !!fill), color = "black",
@@ -104,7 +104,7 @@ my_map_raster_points <- function(raster, points, points.fill, date, title) {
       data = st_as_sf(nc_borders), aes(geometry = geometry),
       colour = "white", linewidth = .3, fill = NA
     ) +
-    scale_fill_whitebox_c(
+    tidyterra::scale_fill_whitebox_c(
       palette = "muted",
       labels = scales::label_number(suffix = "º"),
       n.breaks = 12,
@@ -115,13 +115,13 @@ my_map_raster_points <- function(raster, points, points.fill, date, title) {
       title = title,
       subtitle = date
     ) +
-    annotation_scale(
+    ggspatial::annotation_scale(
       location = "bl", pad_x = unit(1, "cm"),
       pad_y = unit(1, "cm"),
       height = unit(0.30, "cm"),
       text_cex = 1
     ) +
-    annotation_north_arrow(
+    ggspatial::annotation_north_arrow(
       location = "br",
       which_north = "true",
       pad_x = unit(0.2, "cm"),

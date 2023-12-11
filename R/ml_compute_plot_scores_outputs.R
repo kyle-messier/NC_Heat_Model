@@ -66,7 +66,7 @@ compute_rmse_cv <- function(cv_fit, predicted) {
 #' @return ggplot map of RMSE by cross validation type
 #' @export
 map_rmse_cv <- function(cv_fit, cv_rmse) {
-  .preds <- .estimate <- type <- NULL
+  .preds <- .estimate <- type <- geometry <- NULL
   p <- cv_fit %>%
     unnest(.preds) %>%
     dplyr::left_join(cv_rmse, by = c("id", "type")) %>%
@@ -96,7 +96,7 @@ map_rmse_cv <- function(cv_fit, cv_rmse) {
 #' @return ggplot map of residuals after cross validation type
 #' @export
 map_res_cv <- function(cv_fit, predicted) {
-  .preds <- .pred <- type <- NULL
+  .preds <- .pred <- type <- geometry <- NULL
   p <- cv_fit %>%
     unnest(.preds) %>%
     ggplot(aes(color = {{ predicted }} - .pred)) +

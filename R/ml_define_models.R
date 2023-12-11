@@ -3,8 +3,8 @@
 #' @param split A tibble of split
 #' @return A tibble with columns geometry, tmin and .pred
 compute_preds_lm <- function(split, formula) {
-  mod <- lm(formula, data = analysis(split))
-  holdout <- assessment(split)
+  mod <- lm(formula, data = spatialsample::analysis(split))
+  holdout <- spatialsample::assessment(split)
   fit <- tibble::tibble(
     geometry = holdout$geometry,
     tmin = holdout$tmin,
@@ -35,7 +35,8 @@ compute_preds_lm_cv <- function(sp_samples, formula) {
   # -- each split of sp_samples has its own .preds with
   # -- 3 columns: geometry, {{variable to predict}} (eg: tmin) and .pred
   cv_fit <- sp_samples %>%
-    dplyr::mutate(.preds = purr::map("splits", compute_preds_lm,
+    dplyr::mutate(.preds = purr::map("splits",
+                                     compute_preds_lm,
                                      formula = formula))
   return(cv_fit)
 }

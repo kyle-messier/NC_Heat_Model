@@ -24,7 +24,7 @@ convert_era5nc_to_dt <- function(era5_file) {
                   lat = lat[var2],
                   t2m = value)]
   pixels <- unique(dt[, c("lon", "lat")])
-  pixels$geom <- index(pixels)
+  pixels$geom <- zoo::index(pixels)
   dt <- merge(dt, pixels, by = c("lon", "lat"))
   return(dt)
 }
@@ -64,6 +64,7 @@ assign_date_12am <- function(x_edt) {
 #' @returns a data.table object with columns tnwmo, tn7am, tn12am
 #' @export
 compute_tn <- function(dt) {
+  t2m <- NULL
   # EDT = Eastern Daylight Time (consider clock-changing)
   # EST = Eastern Standard Time
   tz <- "America/New_York"
@@ -120,6 +121,7 @@ assign_datetxwmo <- function(x) {
 #' @returns a data.table object with columns txwmo, tx7am, tx12am
 #' @export
 compute_tx <- function(dt) {
+  t2m <- NULL
   # EDT = Eastern Daylight Time (consider clock-changing)
   # EST = Eastern Standard Time
   tz <- "America/New_York"

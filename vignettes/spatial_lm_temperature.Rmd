@@ -40,6 +40,9 @@ library(spatialsample)
 library(yardstick)
 ```
 
+```{r}
+input_path <- "../input/"
+```
 My own functions to manipulate data:
 
 ```{r}
@@ -55,8 +58,12 @@ source("../R/ml_compute_plot_scores_outputs.R")
 #### Open data on a specific period
 
 ```{r}
-obs <- fread("../input/NC-monitors-dailysummary-20220601-20220831-space-time-covariates.csv")
-nc_borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp")
+obs <- fread(paste0(input_path,
+                    "NC-monitors-dailysummary-20220601-20220831",
+                    "-space-time-covariates.csv"))
+nc_poly <- paste0("NC_county_boundary/",
+                  "North_Carolina_State_and_County_Boundary_Polygons.shp")
+nc_borders <- vect(paste0(input_path, nc_poly))
 
 p <- seq(as.Date("2022-07-20"), as.Date("2022-07-22"), by = "1 day")
 pred_p <- open_pred_period(p)
@@ -77,7 +84,7 @@ pred_p <- project_dt(pred_p, crs_wgs84, crs_nad83)
 obs_p <- project_dt(obs_p, crs_wgs84, crs_nad83)
 ```
 
-Add county to datatables
+Add county to data.tables
 
 ```{r}
 pred_p <- add_nc_county(pred_p, crs_nad83)
@@ -183,8 +190,10 @@ df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
   geom_tile() +
   labs(title = "Test on random observations") +
-  scale_fill_manual(values = c(train = "lightblue", 
-                               test = "tomato4")) +
+  scale_fill_manual(values = c(
+    train = "lightblue",
+    test = "tomato4"
+  )) +
   my_theme_paper() +
   theme(
     axis.ticks.y = element_blank(),
@@ -201,8 +210,10 @@ df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
   geom_tile() +
   labs(title = "Test on random monitors") +
-  scale_fill_manual(values = c(train = "lightblue", 
-                               test = "tomato4")) +
+  scale_fill_manual(values = c(
+    train = "lightblue",
+    test = "tomato4"
+  )) +
   theme(
     axis.ticks.y = element_blank(),
     axis.text.y = element_blank()
@@ -218,8 +229,10 @@ df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
   geom_tile() +
   labs(title = "Test on last day") +
-  scale_fill_manual(values = c(train = "lightblue", 
-                               test = "tomato4")) +
+  scale_fill_manual(values = c(
+    train = "lightblue",
+    test = "tomato4"
+  )) +
   theme(
     axis.ticks.y = element_blank(),
     axis.text.y = element_blank()
@@ -275,16 +288,17 @@ df_train <- train_pie
 df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
-  geom_tile()+
-  scale_fill_manual(values=c("train"="lightblue", test="tomato4"))+
-  labs(title="Test on Piedmont counties")+
-  theme(axis.ticks.y = element_blank(),
-        axis.text.y = element_blank()
-    )  
+  geom_tile() +
+  scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on Piedmont counties") +
+  theme(
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank()
+  )
 ggplot(df, aes(x = lon, y = lat, color = set)) +
-  geom_point()+
-  scale_color_manual(values=c("train"="lightblue", test="tomato4"))+
-  labs(title="Test on Piedmont counties")+
+  geom_point() +
+  scale_color_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on Piedmont counties") +
   coord_equal()
 ```
 
@@ -295,16 +309,17 @@ df_train <- train_pla
 df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
-  geom_tile()+
-  scale_fill_manual(values=c("train"="lightblue", test="tomato4"))+
-  labs(title="Test on plain counties")+
-  theme(axis.ticks.y = element_blank(),
-        axis.text.y = element_blank()
-    )  
+  geom_tile() +
+  scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on plain counties") +
+  theme(
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank()
+  )
 ggplot(df, aes(x = lon, y = lat, color = set)) +
-  geom_point()+
-  scale_color_manual(values=c("train"="lightblue", test="tomato4"))+
-  labs(title="Test on plain counties")+
+  geom_point() +
+  scale_color_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on plain counties") +
   coord_equal()
 ```
 
@@ -315,16 +330,17 @@ df_train <- train_sea
 df_train$set <- "train"
 df <- rbind(df_train, df_test)
 ggplot(df, aes(y = station, x = as.Date(date), fill = set)) +
-  geom_tile()+
-  scale_fill_manual(values=c("train"="lightblue", test="tomato4"))+
-  labs(title="Test on sea counties")+
-  theme(axis.ticks.y = element_blank(),
-        axis.text.y = element_blank()
-    )  
+  geom_tile() +
+  scale_fill_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on sea counties") +
+  theme(
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_blank()
+  )
 ggplot(df, aes(x = lon, y = lat, color = set)) +
-  geom_point()+
-  scale_color_manual(values=c("train"="lightblue", test="tomato4"))+
-  labs(title="Test on sea counties")+
+  geom_point() +
+  scale_color_manual(values = c("train" = "lightblue", test = "tomato4")) +
+  labs(title = "Test on sea counties") +
   coord_equal()
 ```
 
@@ -359,16 +375,21 @@ autoplot(rnd_llo)
 Formula definition
 
 ```{r}
-(formula <- as.formula(paste(predicted, " ~ ", 
-                             paste(predictors, collapse= "+"))))
-(formula_q <- as.formula(paste(predicted, " ~ ", 
-                             paste(predictors_q,
-                                   collapse= "+"))))
+(formula <- as.formula(paste(
+  predicted, " ~ ",
+  paste(predictors, collapse = "+")
+)))
+(formula_q <- as.formula(paste(
+  predicted, " ~ ",
+  paste(predictors_q,
+    collapse = "+"
+  )
+)))
 ```
 
 ```{r}
 cv_fit <- compute_preds_lm_cv(sp_samples)
-cv_rmse <- compute_rmse_cv(cv_fit, predicted=tmin)
+cv_rmse <- compute_rmse_cv(cv_fit, predicted = tmin)
 cv_rmse
 ```
 

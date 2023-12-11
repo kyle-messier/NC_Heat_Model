@@ -16,38 +16,45 @@ library(rgeos)
 library(data.table) # -- for large flat datasets
 ```
 
+```{r}
+input_path <- "../input/"
+```
+
 Open data
 
 ```{r}
-imp <- rast("../input/NC_imperviousness_2019.tif")
-tcc <-  rast("../input/NC_tree-canopy-cover_2021.tif")
-build.fp <-  rast("../input/NC_building-footprints/NorthCarolina_sum.tif")
-build.h <-  vect("../input/NC_building-height-by-block/NC_building-heights-by-block.shp")
-dem <- rast("../input/NC-DEM.tif")
+imp_file <- "NC_imperviousness_2019_crs-meters.tif"
+tcc_file <- "NC_tree-canopy-cover_2021_crs-meters.tif"
+build_fp_file <- paste0("input/NC_building-footprints/",
+                        "NorthCarolina_sum_crs-meters.tif")
+build_h_file <- paste0("NC_building-height-by-block/",
+                       "NC_building-heights-by-block_crs-meters.shp")
+dem_file <- "NC-DEM_crs-meters.tif"
+
+imp <- rast(paste0(input_path, imp_file))
+tcc <- rast(paste0(input_path, tcc_file))
+build_fp <- rast(paste0(input_path, build_fp_file))
+build_h <- vect(paste0(input_path, build_h_file))
+dem <- rast(paste0(input_path, dem_file))
 ```
 
 ```{r}
 crs(imp)
-cat('\n')
+cat("\n")
 crs(tcc)
-cat('\n')
-crs(build.fp)
-cat('\n')
-crs(build.h)
-cat('\n')
+cat("\n")
+crs(build_fp)
+cat("\n")
+crs(build_h)
+cat("\n")
 crs(dem)
 ```
 
 Choose a projection
 
 ```{r}
-crs.meters <- "+proj=lcc +lat_0=33.75 +lon_0=-79 +lat_1=36.1666666666667 +lat_2=34.3333333333333 +x_0=609601.219202439 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
-crs.wgs84 <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
-#crs <- crs.meters
-#crs.name <- "crs-meters"
-crs <- crs.wgs84
-crs.name <- "crs-wgs84"
-
+crs <- "EPSG:4326"
+crs_name <- "crs-wgs84"
 cat(crs)
 ```
 
@@ -55,28 +62,61 @@ Project data and save the data
 
 ```{r}
 # -- imperviousness
-imp.p <- project(imp, crs)
-writeRaster(imp.p, filename=paste0("../input/NC_imperviousness_2019_", crs.name,".tif"), overwrite=T)
+imp_p <- project(imp, crs)
+writeRaster(imp_p,
+            filename = paste0(input_path,
+                              "NC_imperviousness_2019_",
+                              crs_name,
+                              ".tif"),
+            overwrite = TRUE)
 
 # -- tree canopy cover
-tcc.p <- project(tcc, crs)
-writeRaster(tcc.p, filename=paste0("../input/NC_tree-canopy-cover_2021_", crs.name,".tif"), overwrite=T)
+tcc_p <- project(tcc, crs)
+writeRaster(tcc_p,
+            filename = paste0(input_path,
+                              "NC_tree-canopy-cover_2021_",
+                              crs_name,
+                              ".tif"),
+            overwrite = TRUE)
 
 # -- building footprint
-build.fp.p <- project(build.fp, crs)
-writeRaster(build.fp.p, filename=paste0("../input/NC_building-footprints/NorthCarolina_sum_", crs.name,".tif"), overwrite=T)
+build_fp_p <- project(build_fp, crs)
+writeRaster(build_fp_p,
+            filename = paste0(input_path,
+                              "NC_building-footprints/NorthCarolina_sum_",
+                              crs_name,
+                              ".tif"),
+            overwrite = TRUE)
 
 # -- building height
-build.h.p <- project(build.h, crs)
-writeVector(build.h.p, filename=paste0("../input/NC_building-height-by-block/NC_building-heights-by-block_", crs.name,".shp"), overwrite=T)
+build_h_p <- project(build_h, crs)
+writeVector(build_h_p,
+            filename = paste0(input_path,
+                              "NC_building-height-by-block/",
+                              "NC_building-heights-by-block_",
+                              crs_name,
+                              ".shp"),
+            overwrite = TRUE)
 
 # -- digital elevation model
-dem.p <- project(dem, crs)
-writeRaster(dem.p, filename=paste0("../input/NC-DEM_", crs.name,".tif"), overwrite=T)
+dem_p <- project(dem, crs)
+writeRaster(dem_p,
+            filename = paste0(input_path,
+                              "NC-DEM_",
+                              crs_name,
+                              ".tif"),
+            overwrite = TRUE)
 ```
 
-Important: it sounds like there are missing tiles in building footprint data. An explanation can be found in the paper Heris, M.P., Foks, N., Bagstad, K., and Troy, A., 2020, A national dataset of rasterized building footprints for the U.S.: U.S. Geological Survey data release, <https://doi.org/10.5066/P9J2Y1WG.>:
+Important: it sounds like there are missing tiles in building footprint data. 
+An explanation can be found in the paper Heris, M.P., Foks, N., Bagstad, K., 
+and Troy, A., 2020, A national dataset of rasterized building footprints for 
+the U.S.: U.S. Geological Survey data release, 
+<https://doi.org/10.5066/P9J2Y1WG.>:
 
-"*We also identified systematic gaps in the Microsoft data for some geographic areas. These larger gaps seem to have a tile pattern, where aerial photos may have been unavailable to the Microsoft building detection algorithm"*
+"*We also identified systematic gaps in the Microsoft data for some geographic 
+areas. These larger gaps seem to have a tile pattern, where aerial photos may 
+have been unavailable to the Microsoft building detection algorithm"*
 
-Their computational algorithm is applied to Microsoft released a U.S.-wide vector building dataset provided in 2018 but this dataset has missing tiles.
+Their computational algorithm is applied to Microsoft released a U.S.-wide 
+vector building dataset provided in 2018 but this dataset has missing tiles.

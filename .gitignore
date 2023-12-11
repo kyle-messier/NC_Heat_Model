@@ -63,4 +63,5 @@ rsconnect/
 <<<<<<< HEAD
 =======
 R/.*
+vignettes/.*
 >>>>>>> 8cbd316 (fix compatibility of main local folder)

@@ -9,14 +9,8 @@ date: "2023-07-20"
 Libraries
 
 ```{r, message=F}
-#library(raster)   # -- old
-#library(sp)       # -- old
-#library(rgdal)    # -- deprecated in 10/2023
-#library(rgeos)    # -- deprecated in 10/2023
-#library(maptools) # -- deprecated in 10/2023
 library(terra)
 library(sf)
-
 library(ggplot2)
 library(ggspatial)
 library(tidyterra)
@@ -29,36 +23,36 @@ library(data.table) # -- for large flat datasets
 #### 1) Create empty grid
 
 1.  Open NC borders and 30m-imperviousness data over NC
-
 2.  Compute imperviousness mean over 5km-resolution grid
-
 3.  Create an urban mask defined as 5kmx5km grid cells with imperviousness \>5%
-
 4.  Create a grid with 1kmx1km cells above rural areas and 200mx200m cells above urban ones
 
 #### 2) Add covariates
 
 -   Land cover and urban indicators: imperviousness, building footprint, building height, tree canopy cover
-
 -   Digital Elevation Model (DEM)
-
 -   Meteorological covariates
 
 #### 3) Save prediction grid with space-time covariates in a datatable
+
+```{r}
+input_path <- "../input/"
+```
 
 ## Empty grid creation
 
 ### NC borders
 
 ```{r}
-nc.borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp")
+nc_poly_file <- paste0("NC_county_boundary/",
+                       "North_Carolina_State_and_County_Boundary_Polygons.shp")
+nc_borders <- vect(input_path, nc_poly_file)
 ```
 
-Change nc.borders units (us feet to meter)
+Change nc_borders units (us feet to meter)
 
 ```{r}
-crs.meters <- "+proj=lcc +lat_0=33.75 +lon_0=-79 +lat_1=36.1666666666667 +lat_2=34.3333333333333 +x_0=609601.219202439 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
-nc.borders <- project(nc.borders, crs.meters)
+nc_borders <- project(nc_borders, "EPSG:5070")
 ```
 
 ### 5km-resolution imperviousness grid
@@ -67,77 +61,85 @@ Open and map imperviousness 30m-resolution data across NC
 
 ```{r}
 imp <- rast("../input/NC_imperviousness_2019.tif")
-imp <- project(imp, crs.meters)
+imp <- project(imp, "EPSG:5070")
 
-imp.plot <- ifel(imp==0, NA, imp)
+imp_plot <- ifel(imp == 0, NA, imp)
 ggplot() +
-  geom_spatraster(data = imp.plot) +
-  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
-               colour = "grey", linewidth=.3, fill = NA) +
+  geom_spatraster(data = imp_plot) +
+  geom_sf(
+    data = st_as_sf(nc_borders), aes(geometry = geometry),
+    colour = "grey", linewidth = .3, fill = NA
+  ) +
   scale_fill_whitebox_c(
     palette = "muted",
     labels = scales::label_number(suffix = "%"),
     n.breaks = 12,
     guide = guide_legend(reverse = TRUE),
-    na.value=NA
+    na.value = NA
   ) +
   labs(
     fill = "",
     title = "Prediction grid"
   ) +
   annotation_scale(
-    location="bl", pad_x = unit(1, "cm"), 
-		pad_y = unit(1, "cm"), 
-		height = unit(0.30, "cm"), 
-		text_cex = 1
-	) +
-	annotation_north_arrow(
-	  location = "br", 
-	  which_north = "true", 
-		pad_x = unit(0.2, "cm"), 
-		pad_y = unit(0.2, "cm")
-	) +
-	theme(
-			axis.text = element_text(size=12, family="serif"),
-			plot.caption = element_text(size=10, family="serif"),
-			legend.text = element_text(size=12, family="serif"),
-			legend.title = element_text(size=12, family="serif"),
-			panel.background = element_rect(fill = "white"),
-			panel.grid.major=element_line(colour="grey")
-		)
+    location = "bl", pad_x = unit(1, "cm"),
+    pad_y = unit(1, "cm"),
+    height = unit(0.30, "cm"),
+    text_cex = 1
+  ) +
+  annotation_north_arrow(
+    location = "br",
+    which_north = "true",
+    pad_x = unit(0.2, "cm"),
+    pad_y = unit(0.2, "cm")
+  ) +
+  theme(
+    axis.text = element_text(size = 12, family = "serif"),
+    plot.caption = element_text(size = 10, family = "serif"),
+    legend.text = element_text(size = 12, family = "serif"),
+    legend.title = element_text(size = 12, family = "serif"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(colour = "grey")
+  )
 ```
 
 Create 5km and 10km-resolution raster in NC shapefile
 
 ```{r}
-grid.10km <- rast(ext(nc.borders), resolution = c(10000, 10000), crs = crs.meters)
-grid.10km <- extend(grid.10km, c(1,1))
-grid.10km <- as.polygons(grid.10km)
-grid.10km <- terra::intersect(grid.10km, nc.borders)
-plot(grid.10km)
+grid_10km <- rast(ext(nc_borders), resolution = c(10000, 10000),
+                  crs = "EPSG:5070")
+grid_10km <- extend(grid_10km, c(1, 1))
+grid_10km <- as.polygons(grid_10km)
+grid_10km <- terra::intersect(grid_10km, nc_borders)
+plot(grid_10km)
 
-grid.5km <- rast(ext(nc.borders), resolution = c(5000,5000), crs = crs.meters)
-grid.5km <- extend(grid.5km, c(1,1))
-grid.5km <- as.polygons(grid.5km)
-grid.5km <- terra::intersect(grid.5km, nc.borders)
-plot(grid.5km)
+grid_5km <- rast(ext(nc_borders), resolution = c(5000, 5000), crs = "EPSG:5070")
+grid_5km <- extend(grid_5km, c(1, 1))
+grid_5km <- as.polygons(grid_5km)
+grid_5km <- terra::intersect(grid_5km, nc_borders)
+plot(grid_5km)
 ```
 
 Compute and save 5kmx5km imperviousness file (each 5kmx5km cell is the mean of 30mx30m info)
 
 ```{r, eval=F}
-imp.mean <- zonal(imp, grid.5km, fun='mean', as.raster=T)
-writeRaster(imp.mean, filename="../input/NC_imperviousness_2019_5kmx5km.tif", overwrite=T)
+imp_mean <- zonal(imp, grid_5km, fun = "mean", as.raster = TRUE)
+new_imp_file <- "NC_imperviousness_2019_5kmx5km.tif"
+writeRaster(imp_mean,
+            filename = paste0(input_path, new_imp_file),
+            overwrite = TRUE)
 ```
 
 Open and map the 5kmx5km imperviousness file
 
 ```{r}
-imp.mean <- rast("../input/NC_imperviousness_2019_5kmx5km.tif")
+imp_mean <- rast("../input/NC_imperviousness_2019_5kmx5km.tif")
 ggplot() +
-  geom_spatraster(data = imp.mean) +
-  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
-               colour = "white", linewidth=.3, fill = NA) +
+  geom_spatraster(data = imp_mean) +
+  geom_sf(
+    data = st_as_sf(nc_borders), aes(geometry = geometry),
+    colour = "white", linewidth = .3, fill = NA
+  ) +
   scale_fill_whitebox_c(
     palette = "muted",
     labels = scales::label_number(suffix = "%"),
@@ -149,25 +151,25 @@ ggplot() +
     title = "North Carolina imperviousness rate"
   ) +
   annotation_scale(
-    location="bl", pad_x = unit(1, "cm"), 
-		pad_y = unit(1, "cm"), 
-		height = unit(0.30, "cm"), 
-		text_cex = 1
-	) +
-	annotation_north_arrow(
-	  location = "br", 
-	  which_north = "true", 
-		pad_x = unit(0.2, "cm"), 
-		pad_y = unit(0.2, "cm")
-	) +
-	theme(
-			axis.text = element_text(size=12, family="serif"),
-			plot.caption = element_text(size=10, family="serif"),
-			legend.text = element_text(size=12, family="serif"),
-			legend.title = element_text(size=12, family="serif"),
-			panel.background = element_rect(fill = "white"),
-			panel.grid.major=element_line(colour="grey")
-		)
+    location = "bl", pad_x = unit(1, "cm"),
+    pad_y = unit(1, "cm"),
+    height = unit(0.30, "cm"),
+    text_cex = 1
+  ) +
+  annotation_north_arrow(
+    location = "br",
+    which_north = "true",
+    pad_x = unit(0.2, "cm"),
+    pad_y = unit(0.2, "cm")
+  ) +
+  theme(
+    axis.text = element_text(size = 12, family = "serif"),
+    plot.caption = element_text(size = 10, family = "serif"),
+    legend.text = element_text(size = 12, family = "serif"),
+    legend.title = element_text(size = 12, family = "serif"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(colour = "grey")
+  )
 ```
 
 ### Create urban and rural masks
@@ -177,107 +179,113 @@ ggplot() +
 -   Urban pixels: 5kmx5km imperviousness \<= 5%
 
 ```{r}
-urb.mask <- ifel(imp.mean>5, 1, NA)
-rur.mask <- ifel(imp.mean<=5, 1,NA)
+urb_mask <- ifel(imp_mean > 5, 1, NA)
+rur_mask <- ifel(imp_mean <= 5, 1, NA)
 ggplot() +
-  geom_spatraster(data = urb.mask) +
-  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
-               colour = "grey", linewidth=.3, fill = NA) +
+  geom_spatraster(data = urb_mask) +
+  geom_sf(
+    data = st_as_sf(nc_borders), aes(geometry = geometry),
+    colour = "grey", linewidth = .3, fill = NA
+  ) +
   scale_fill_whitebox_c(
     palette = "deep",
     labels = scales::label_number(suffix = ""),
-    na.value=NA
+    na.value = NA
   ) +
   labs(
     fill = "",
     title = "North Carolina urban mask"
   ) +
   annotation_scale(
-    location="bl", pad_x = unit(1, "cm"), 
-		pad_y = unit(1, "cm"), 
-		height = unit(0.30, "cm"), 
-		text_cex = 1
-	) +
-	annotation_north_arrow(
-	  location = "br", 
-	  which_north = "true", 
-		pad_x = unit(0.2, "cm"), 
-		pad_y = unit(0.2, "cm")
-	) +
-	theme(
-			axis.text = element_text(size=12, family="serif"),
-			plot.caption = element_text(size=10, family="serif"),
-			legend.position = "none",
-			panel.background = element_rect(fill = "white"),
-			panel.grid.major=element_line(colour="grey")
-		)
+    location = "bl", pad_x = unit(1, "cm"),
+    pad_y = unit(1, "cm"),
+    height = unit(0.30, "cm"),
+    text_cex = 1
+  ) +
+  annotation_north_arrow(
+    location = "br",
+    which_north = "true",
+    pad_x = unit(0.2, "cm"),
+    pad_y = unit(0.2, "cm")
+  ) +
+  theme(
+    axis.text = element_text(size = 12, family = "serif"),
+    plot.caption = element_text(size = 10, family = "serif"),
+    legend.position = "none",
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(colour = "grey")
+  )
 ```
 
 Urban grid (200m-resolution)
 
 ```{r}
-urb.pol <- as.polygons(urb.mask)
-urb.rast <- rast(urb.pol, resolution = c(200, 200), crs = crs.meters)
-urb.grid <- as.polygons(urb.rast)
-urb.grid <- terra::intersect(urb.grid, urb.pol)
+urb_pol <- as.polygons(urb_mask)
+urb_rast <- rast(urb_pol, resolution = c(200, 200), crs = "EPSG:5070")
+urb_grid <- as.polygons(urb_rast)
+urb_grid <- terra::intersect(urb_grid, urb_pol)
 ```
 
 Rural grid (1km-resolution)
 
 ```{r}
-rur.pol <- as.polygons(rur.mask)
-rur.rast <- rast(rur.pol, resolution = c(1000, 1000), crs = crs.meters)
-rur.grid <- as.polygons(rur.rast)
-rur.grid <- terra::intersect(rur.grid, rur.pol)
+rur_pol <- as.polygons(rur_mask)
+rur_rast <- rast(rur_pol, resolution = c(1000, 1000), crs = "EPSG:5070")
+rur_grid <- as.polygons(rur_rast)
+rur_grid <- terra::intersect(rur_grid, rur_pol)
 ```
 
 ### Map and save empty prediction grid
 
 ```{r}
 m <- ggplot() +
-  geom_spatvector(data = urb.grid, color='orange', size=.1) +
-  geom_spatvector(data = rur.grid, color='green', size=.1) +
-  geom_sf(data = st_as_sf(nc.borders), aes(geometry=geometry), 
-               colour = "grey", linewidth=.3, fill = NA) +
+  geom_spatvector(data = urb_grid, color = "orange", size = .1) +
+  geom_spatvector(data = rur_grid, color = "green", size = .1) +
+  geom_sf(
+    data = st_as_sf(nc_borders), aes(geometry = geometry),
+    colour = "grey", linewidth = .3, fill = NA
+  ) +
   labs(
     fill = "",
     title = "Prediction grid"
   ) +
   annotation_scale(
-    location="bl", pad_x = unit(1, "cm"), 
-		pad_y = unit(1, "cm"), 
-		height = unit(0.30, "cm"), 
-		text_cex = 1
-	) +
-	annotation_north_arrow(
-	  location = "br", 
-	  which_north = "true", 
-		pad_x = unit(0.2, "cm"), 
-		pad_y = unit(0.2, "cm")
-	) +
-	theme(
-			axis.text = element_text(size=12, family="serif"),
-			plot.caption = element_text(size=10, family="serif"),
-			legend.text = element_text(size=12, family="serif"),
-			legend.title = element_text(size=12, family="serif"),
-			panel.background = element_rect(fill = "white"),
-			panel.grid.major=element_line(colour="grey")
-		)
+    location = "bl", pad_x = unit(1, "cm"),
+    pad_y = unit(1, "cm"),
+    height = unit(0.30, "cm"),
+    text_cex = 1
+  ) +
+  annotation_north_arrow(
+    location = "br",
+    which_north = "true",
+    pad_x = unit(0.2, "cm"),
+    pad_y = unit(0.2, "cm")
+  ) +
+  theme(
+    axis.text = element_text(size = 12, family = "serif"),
+    plot.caption = element_text(size = 10, family = "serif"),
+    legend.text = element_text(size = 12, family = "serif"),
+    legend.title = element_text(size = 12, family = "serif"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(colour = "grey")
+  )
 m
 ```
 
 Save urban and rural grid (squared polygons) and save all prediction grid as a unique dataframe (centroids of raster's polygons, coordinates in wgs84)
 
 ```{r}
-urb.grid.df <- centroids(urb.grid, inside=T)
-rur.grid.df <- centroids(rur.grid, inside=T)
-urb.grid.df$geo <- 'urb'
-rur.grid.df$geo <- 'rur'
-grid.points <- rbind(urb.grid.df, rur.grid.df)
-grid.points <- project(grid.points, crs.meters)
+urb_grid_df <- centroids(urb_grid, inside = TRUE)
+rur_grid_df <- centroids(rur_grid, inside = TRUE)
+urb_grid_df$geo <- "urb"
+rur_grid_df$geo <- "rur"
+grid_points <- rbind(urb_grid_df, rur_grid_df)
+grid_points <- project(grid_points, "EPSG:5070")
 # -- keep only the geo covariate
-grid.points <- grid.points %>% select(geo)
-writeVector(grid.points, "../input/prediction_grid_points_urb_rur_empty.shp", overwrite=T)
+grid_points <- grid_points %>% select(geo)
+writeVector(grid_points,
+            paste0(input_path, "prediction_grid_points_urb_rur_empty.shp"),
+            overwrite = TRUE)
 ```
 
 ## Spatial covariates addition
@@ -285,7 +293,7 @@ writeVector(grid.points, "../input/prediction_grid_points_urb_rur_empty.shp", ov
 Interesting: with the terra::extract function, possibility to chose method='bilinear' to return a value interpolated from the values of the four nearest raster cells.
 
 ```{r}
-grid.points <- vect("../input/prediction_grid_points_urb_rur_empty.shp")
+grid_points <- vect("../input/prediction_grid_points_urb_rur_empty.shp")
 ```
 
 Create entent for RTP area if we want to plot a zoom
@@ -293,46 +301,57 @@ Create entent for RTP area if we want to plot a zoom
 ```{r}
 lat <- c(35.6, 36.11, 36.11, 35.6)
 lon <- c(-79.19, -79.10, -78.39, -78.39)
-ext.rtp <- vect(cbind(lon, lat), type="points", crs="+proj=longlat +datum=WGS84")
-ext.rtp <- project(ext.rtp, crs(nc.borders))
-ext(ext.rtp)
+ext_rtp <- vect(cbind(lon, lat), type = "points", crs = "EPSG:4326")
+ext_rtp <- project(ext_rtp, crs(nc_borders))
+ext(ext_rtp)
 ```
 
-#### Open covariates projected on crs.meters
+#### Open covariates projected on "EPSG:5070"
 
 ```{r}
-imp <- rast("../input/NC_imperviousness_2019_crs-meters.tif")
-tcc <-  rast("../input/NC_tree-canopy-cover_2021_crs-meters.tif")
-build.fp <-  rast("../input/NC_building-footprints/NorthCarolina_sum_crs-meters.tif")
-build.h <-  vect("../input/NC_building-height-by-block/NC_building-heights-by-block_crs-meters.shp")
-dem <- rast("../input/NC-DEM_crs-meters.tif")
+imp_file <- "NC_imperviousness_2019_crs-meters.tif"
+tcc_file <- "NC_tree-canopy-cover_2021_crs-meters.tif"
+build_fp_file <- paste0("input/NC_building-footprints/",
+                        "NorthCarolina_sum_crs-meters.tif")
+build_h_file <- paste0("NC_building-height-by-block/",
+                       "NC_building-heights-by-block_crs-meters.shp")
+dem_file <- "NC-DEM_crs-meters.tif"
+
+imp <- rast(paste0(input_path, imp_file))
+tcc <- rast(paste0(input_path, tcc_file))
+build_fp <- rast(paste0(input_path, build_fp_file))
+build_h <- vect(paste0(input_path, build_h_file))
+dem <- rast(paste0(input_path, dem_file))
 ```
 
 #### Extract at each grid point
 
 ```{r}
-grid.spatcov <- grid.points
-grid.spatcov <- terra::extract(imp, grid.points, bind=T) 
-grid.spatcov <- terra::extract(tcc, grid.spatcov, fun=function(x) mean(x, na.rm=T), method='bilinear', bind=T)
-grid.spatcov <- terra::extract(build.fp, grid.spatcov, fun='mean', method='bilinear', bind=T)
-grid.spatcov <- terra::extract(dem, grid.spatcov, bind=T) 
+grid_spatcov <- grid_points
+grid_spatcov <- terra::extract(imp, grid_points, bind = TRUE)
+grid_spatcov <- terra::extract(tcc, grid_spatcov,
+                               fun = function(x) mean(x, na.rm = TRUE),
+                               method = "bilinear", bind = TRUE)
+grid_spatcov <- terra::extract(build_fp, grid_spatcov, fun = "mean",
+                               method = "bilinear", bind = TRUE)
+grid_spatcov <- terra::extract(dem, grid_spatcov, bind = TRUE)
 
-# -- build.h is a vector and not a raster, bind=T doesn't work...
-grid0 <- terra::extract(build.h[,c("Height_cat")], grid.points) 
-grid.spatcov$build.h <- grid0$Height_cat
+# -- build_h is a vector and not a raster, bind=TRUE doesn't work...
+grid0 <- terra::extract(build_h[, c("Height_cat")], grid_points)
+grid_spatcov$build_h <- grid0$Height_cat
 ```
 
 #### Rename covariates
 
 ```{r}
-grid.spatcov <- grid.spatcov %>% rename(
-  imp = 'NC_imperviousness_2019',
-  tcc = 'NC_tree-canopy-cover_2021',
-  build.fp = 'NorthCarolina_sum', 
-  dem = 'Layer_1'
+grid_spatcov <- grid_spatcov %>% rename(
+  imp = "NC_imperviousness_2019",
+  tcc = "NC_tree-canopy-cover_2021",
+  build_fp = "NorthCarolina_sum",
+  dem = "Layer_1"
 )
 
-summary(grid.spatcov)
+summary(grid_spatcov)
 ```
 
 ## Temporal covariates addition
@@ -340,45 +359,74 @@ summary(grid.spatcov)
 TN with WMO standards
 
 ```{r}
-v <- data.frame(cbind(lon=geom(grid.points)[,'x'], lat=geom(grid.points)[,'y']))
-grid.timecov <- vect(v, geom=c('lon', 'lat'))
-grid.timecov$geom <- geom(grid.timecov)[, 'geom']
-era5.jja.vector.TNwmo <- rast('../input/era5_daily_reanalysis_20220601_20220831_TNwmo.tif')
-era5.jja.vector.TN7am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TN7am.tif')
-era5.jja.vector.TN12am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TN12am.tif')
+v <- data.frame(cbind(lon = geom(grid_points)[, "x"],
+                      lat = geom(grid_points)[, "y"]))
+grid_timecov <- vect(v, geom = c("lon", "lat"))
+grid_timecov$geom <- geom(grid_timecov)[, "geom"]
 
-era5.jja.vector.TNwmo <- project(era5.jja.vector.TNwmo, crs.meters)
-era5.jja.vector.TN7am <- project(era5.jja.vector.TN7am, crs.meters)
-era5.jja.vector.TN12am <- project(era5.jja.vector.TN12am, crs.meters)
+file_era5_tnwmo <- "era5_daily_reanalysis_20220601_20220831_TNwmo.tif"
+file_era5_tn7am <- "era5_daily_reanalysis_20220601_20220831_TN7am.tif"
+file_era5_tn12am <- "era5_daily_reanalysis_20220601_20220831_TN12am.tif"
 
-grid.timecov.TNwmo <- terra::extract(era5.jja.vector.TNwmo, grid.timecov, bind=T) 
-grid.timecov.TN7am <- terra::extract(era5.jja.vector.TN7am, grid.timecov, bind=T) 
-grid.timecov.TN12am <- terra::extract(era5.jja.vector.TN12am, grid.timecov, bind=T) 
+era5_tnwmo <- rast(paste0(input_path, file_era5_tnwmo))
+era5_tn7am <- rast(paste0(input_path, file_era5_tn7am))
+era5_tn12am <- rast(paste0(input_path, file_era5_tn12am))
 
-era5.jja.vector.TXwmo <- rast('../input/era5_daily_reanalysis_20220601_20220831_TXwmo.tif')
-era5.jja.vector.TX7am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TX7am.tif')
-era5.jja.vector.TX12am <- rast('../input/era5_daily_reanalysis_20220601_20220831_TX12am.tif')
+era5_tnwmo <- project(era5_tnwmo, "EPSG:5070")
+era5_tn7am <- project(era5_tn7am, "EPSG:5070")
+era5_tn12am <- project(era5_tn12am, "EPSG:5070")
 
-era5.jja.vector.TXwmo <- project(era5.jja.vector.TXwmo, crs.meters)
-era5.jja.vector.TX7am <- project(era5.jja.vector.TX7am, crs.meters)
-era5.jja.vector.TX12am <- project(era5.jja.vector.TX12am, crs.meters)
+grid_timecov_tnwmo <- terra::extract(era5_tnwmo, grid_timecov, bind = TRUE)
+grid_timecov_tn7am <- terra::extract(era5_tn7am, grid_timecov, bind = TRUE)
+grid_timecov_tn12am <- terra::extract(era5_tn12am, grid_timecov, bind = TRUE)
 
-grid.timecov.TXwmo <- terra::extract(era5.jja.vector.TXwmo, grid.timecov, bind=T) 
-grid.timecov.TX7am <- terra::extract(era5.jja.vector.TX7am, grid.timecov, bind=T) 
-grid.timecov.TX12am <- terra::extract(era5.jja.vector.TX12am, grid.timecov, bind=T) 
+file_era5_txwmo <- "era5_daily_reanalysis_20220601_20220831_TXwmo.tif"
+file_era5_tx7am <- "era5_daily_reanalysis_20220601_20220831_TX7am.tif"
+file_era5_tx12am <- "era5_daily_reanalysis_20220601_20220831_TX12am.tif"
 
-df.grid.timecov.TNwmo <- melt(setDT(as.data.frame(grid.timecov.TNwmo)), id.vars = 'geom', variable.name = 'DATE', value.name='TNwmo')
-df.grid.timecov.TN7am <- melt(setDT(as.data.frame(grid.timecov.TN7am)), id.vars = 'geom', variable.name = 'DATE', value.name='TN7am')
-df.grid.timecov.TN12am <- melt(setDT(as.data.frame(grid.timecov.TN12am)), id.vars = 'geom', variable.name = 'DATE', value.name='TN12am')
-df.grid.timecov.TXwmo <- melt(setDT(as.data.frame(grid.timecov.TXwmo)), id.vars = 'geom', variable.name = 'DATE', value.name='TXwmo')
-df.grid.timecov.TX7am <- melt(setDT(as.data.frame(grid.timecov.TX7am)), id.vars = 'geom', variable.name = 'DATE', value.name='TX7am')
-df.grid.timecov.TX12am <- melt(setDT(as.data.frame(grid.timecov.TX12am)), id.vars = 'geom', variable.name = 'DATE', value.name='TX12am')
+era5_txwmo <- rast(paste0(input_path, file_era5_txwmo))
+era5_tx7am <- rast(paste0(input_path, file_era5_tx7am))
+era5_tx12am <- rast(paste0(input_path, file_era5_tx12am))
 
-dt.time <- merge(df.grid.timecov.TNwmo, df.grid.timecov.TN7am, by=c('geom', 'DATE'))
-dt.time <- merge(dt.time, df.grid.timecov.TN12am, by=c('geom', 'DATE'))
-dt.time <- merge(dt.time, df.grid.timecov.TXwmo, by=c('geom', 'DATE'))
-dt.time <- merge(dt.time, df.grid.timecov.TX7am, by=c('geom', 'DATE'))
-dt.time <- merge(dt.time, df.grid.timecov.TX12am, by=c('geom', 'DATE'))
+era5_txwmo <- project(era5_txwmo, "EPSG:5070")
+era5_tx7am <- project(era5_tx7am, "EPSG:5070")
+era5_tx12am <- project(era5_tx12am, "EPSG:5070")
+
+grid_timecov_txwmo <- terra::extract(era5_txwmo, grid_timecov, bind = TRUE)
+grid_timecov_tx7am <- terra::extract(era5_tx7am, grid_timecov, bind = TRUE)
+grid_timecov_tx12am <- terra::extract(era5_tx12am, grid_timecov, bind = TRUE)
+
+df_grid_timecov_tnwmo <- melt(setDT(as.data.frame(grid_timecov_tnwmo)),
+                              id.vars = "geom",
+                              variable.name = "DATE",
+                              value.name = "TNwmo")
+df_grid_timecov_tn7am <- melt(setDT(as.data.frame(grid_timecov_tn7am)),
+                              id.vars = "geom",
+                              variable.name = "DATE",
+                              value.name = "TN7am")
+df_grid_timecov_tn12am <- melt(setDT(as.data.frame(grid_timecov_tn12am)),
+                               id.vars = "geom",
+                               variable.name = "DATE",
+                               value.name = "TN12am")
+df_grid_timecov_txwmo <- melt(setDT(as.data.frame(grid_timecov_txwmo)),
+                              id.vars = "geom",
+                              variable.name = "DATE",
+                              value.name = "TXwmo")
+df_grid_timecov_tx7am <- melt(setDT(as.data.frame(grid_timecov_tx7am)),
+                              id.vars = "geom",
+                              variable.name = "DATE",
+                              value.name = "TX7am")
+df_grid_timecov_tx12am <- melt(setDT(as.data.frame(grid_timecov_tx12am)),
+                               id.vars = "geom",
+                               variable.name = "DATE",
+                               value.name = "TX12am")
+
+dt_time <- merge(df_grid_timecov_tnwmo, df_grid_timecov_tn7am,
+                 by = c("geom", "DATE"))
+dt_time <- merge(dt_time, df_grid_timecov_tn12am, by = c("geom", "DATE"))
+dt_time <- merge(dt_time, df_grid_timecov_txwmo, by = c("geom", "DATE"))
+dt_time <- merge(dt_time, df_grid_timecov_tx7am, by = c("geom", "DATE"))
+dt_time <- merge(dt_time, df_grid_timecov_tx12am, by = c("geom", "DATE"))
 ```
 
 ## Merge spatial and temporal covariates
@@ -386,16 +434,15 @@ dt.time <- merge(dt.time, df.grid.timecov.TX12am, by=c('geom', 'DATE'))
 Reproject grid points, add lat, lon, geom and transform to data.table
 
 ```{r}
-crs.wgs84 <- '+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0'
-grid.spatcov <- project(grid.spatcov, crs.wgs84)
-grid.spatcov$geom <- geom(grid.spatcov)[, 'geom']
-grid.spatcov$lon <- geom(grid.spatcov)[, 'x']
-grid.spatcov$lat <- geom(grid.spatcov)[, 'y']
-dt.spat <- setDT(as.data.frame(grid.spatcov))
+grid_spatcov <- project(grid_spatcov, "EPSG:4326")
+grid_spatcov$geom <- geom(grid_spatcov)[, "geom"]
+grid_spatcov$lon <- geom(grid_spatcov)[, "x"]
+grid_spatcov$lat <- geom(grid_spatcov)[, "y"]
+dt_spat <- setDT(as.data.frame(grid_spatcov))
 ```
 
 ```{r}
-grid.spattimecov <- merge(dt.spat, dt.time, by=c('geom'))
+grid_stcov <- merge(dt_spat, dt_time, by = c("geom"))
 ```
 
 The prediction grid will be stored as a dataframe (or datatable) with columns:
@@ -404,12 +451,14 @@ The prediction grid will be stored as a dataframe (or datatable) with columns:
 
 -   TN, TX (varies in space and time)
 
--   dem, imp, tcc, build.fp, build.h (varies in space)
+-   dem, imp, tcc, build_fp, build_h (varies in space)
 
 It will have 56.794.820 rows (617335 pixels and 92 days) and 10 columns.
 
 ```{r}
-fwrite(grid.spattimecov, '../input/prediction_grid_points_urb_rur_space_time_covariates_jja2022.csv')
+file <- "prediction_grid_points_urb_rur_space_time_covariates_jja2022.csv"
+fwrite(grid_stcov,
+       paste0(input_path, file))
 ```
 
 ------------------------------------------------------------------------

@@ -7,46 +7,51 @@ date: "2023-08-30"
 ```{r, message=FALSE}
 library(terra)
 library(sf)
-
 library(ggplot2)
 library(ggspatial)
 library(tidyterra)
 library(rgeos)
-library(data.table) # -- for large flat datasets
+library(data.table)
 library(DT)
-
-# -- for timeseries
 library(lubridate)
 library(xts)
 ```
 
+```{r}
+input_path <- "../input/"
+```
 
 Open raw file of forest height on US 
 
 ```{r}
-forest <- rast('../input/US_forest_height_2019.tif')
+forest <- rast("../input/US_forest_height_2019.tif")
 crs(forest)
 ```
 
 Extract NC borders
 
 ```{r}
-nc.borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp") 
-nc.borders <- project(nc.borders, crs(forest))
-nc.forest <- terra::crop(forest, nc.borders)
+nc_poly <- paste0("NC_county_boundary/",
+                  "North_Carolina_State_and_County_Boundary_Polygons.shp")
+nc_borders <- vect(paste0(input_path, nc_poly))
+nc_borders <- project(nc_borders, crs(forest))
+nc_forest <- terra::crop(forest, nc_borders)
 ```
 
-Project on crs.meters
+Project on "EPSG:5070"
 
 ```{r}
-crs.meters <- "+proj=lcc +lat_0=33.75 +lon_0=-79 +lat_1=36.1666666666667 +lat_2=34.3333333333333 +x_0=609601.219202439 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
-nc.forest.meters <- project(nc.forest, crs.meters)
+nc_forest_proj <- project(nc_forest, "EPSG:5070")
 ```
 
 Save all final files
 
 ```{r}
-writeRaster(nc.forest, filename="../input/NC_forest_height_2019_crs-wgs84.tif", overwrite=T)
-writeRaster(nc.forest.meters, filename=paste0("../input/NC_forest_height_2019_crs-meters.tif"), overwrite=T)
+writeRaster(nc.forest,
+            filename = "../input/NC_forest_height_2019_crs-wgs84.tif",
+            overwrite = TRUE)
+writeRaster(nc_forest_proj,
+            filename = paste0("../input/NC_forest_height_2019_albers.tif"),
+            overwrite = TRUE)
 ```
 

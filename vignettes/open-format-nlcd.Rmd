@@ -7,15 +7,12 @@ date: "2023-08-30"
 ```{r}
 library(terra)
 library(sf)
-
 library(ggplot2)
 library(ggspatial)
 library(tidyterra)
 library(rgeos)
-library(data.table) # -- for large flat datasets
+library(data.table)
 library(DT)
-
-# -- for timeseries
 library(lubridate)
 library(xts)
 ```
@@ -24,36 +21,45 @@ library(xts)
 Open raw file of land cover on US 
 
 ```{r}
-nlcd <- rast('../input/nlcd_2021_land_cover_l48_20230630/nlcd_2021_land_cover_l48_20230630.img')
+input_path <- "../input/"
+nlcd <- rast(paste0(input_path,
+                    "/nlcd_2021_land_cover_l48_20230630/",
+                    "nlcd_2021_land_cover_l48_20230630.img"))
 ```
 
 Extract NC borders
 
 ```{r}
-nc.borders <- vect("../input/NC_county_boundary/North_Carolina_State_and_County_Boundary_Polygons.shp") 
-nc.borders <- project(nc.borders, crs(nlcd))
-nc.nlcd <- terra::crop(nlcd, nc.borders)
+nc_poly <- paste0("NC_county_boundary/",
+                  "North_Carolina_State_and_County_Boundary_Polygons.shp")
+nc_borders <- vect(paste0(input_path, nc_poly))
+nc_borders <- project(nc_borders, crs(nlcd))
+nc_nlcd <- terra::crop(nlcd, nc_borders)
 ```
 
-Plot nc.nlcd
+Plot nc_nlcd
 
 
 ```{r}
-plot(nc.nlcd)
-plot(nc.borders, add=T)
+plot(nc_nlcd)
+plot(nc_borders, add = TRUE)
 ```
 
 
-Project on crs.meters
+Project on crs_proj
 
 ```{r}
-crs.meters <- "+proj=lcc +lat_0=33.75 +lon_0=-79 +lat_1=36.1666666666667 +lat_2=34.3333333333333 +x_0=609601.219202439 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
-nc.nlcd.meters <- project(nc.nlcd, crs.meters)
+crs_proj <- "EPSG:5070"
+nc_nlcd_proj <- project(nc_nlcd, crs_proj)
 ```
 
 Save all final files
 
 ```{r}
-writeRaster(nc.nlcd, filename="../input/NC_nlcd_crs-wgs84.tif", overwrite=T)
-writeRaster(nc.nlcd.meters, filename=paste0("../input/NC_nlcd_crs-meters.tif"), overwrite=T)
+writeRaster(nc_nlcd,
+            filename = paste0(input_path, "NC_nlcd_crs-wgs84.tif"),
+            overwrite = TRUE)
+writeRaster(nc_nlcd_proj,
+            filename = paste0("../input/NC_nlcd_crs-albers.tif"),
+            overwrite = TRUE)
 ```

@@ -1,0 +1,35 @@
+Package: HeatModel
+Title: Heat model at high resolution on NC
+Version: 1.0.0
+Authors@R: c(
+  person("Eva", "Marques", role = c("aut", "cre"), email = "eva.marques@nih.gov"),
+  person("Kyle", "Messier", role = "ctb")
+  )
+Description: Heat model at high resolution.
+Depends: R (>= 4.1.0)
+Imports: 
+  dplyr,
+  sf,
+  stats,
+  tidyverse,
+  terra,
+  data.table,
+  spData,
+  exactextractr,
+  ggplot2,
+  scatterpie,
+  sftime,
+  rlang,
+  ncdf4
+Suggests: 
+  covr,
+  withr,
+  knitr,
+  rmarkdown,
+  testthat (>= 3.0.0),
+  stars
+Encoding: UTF-8
+VignetteBuilder: knitr, rmarkdown
+RoxygenNote: 7.2.3
+Config/testhat/edition: 3
+License: MIT + file LICENSE

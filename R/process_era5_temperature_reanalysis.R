@@ -6,6 +6,7 @@
 #' @import data.table
 #' @export
 convert_era5nc_to_dt <- function(era5_file) {
+  var1 <- var2 <- var3 <- value <- NULL
   era5 <- ncdf4::nc_open(era5_file)
   lon <- ncdf4::ncvar_get(era5, "longitude")
   lat <- ncdf4::ncvar_get(era5, "latitude")
@@ -17,10 +18,11 @@ convert_era5nc_to_dt <- function(era5_file) {
   dt <- t2m %>%
     reshape2::melt() %>%
     data.table::setDT()
-  dt <- dt[, .(time = time["Var3"],
-               lon = lon["Var1"],
-               lat = lat["Var2"],
-               t2m = "value")]
+  colnames(dt) <- c("var1", "var2", "var3", "value")
+  dt <- dt[, list(time = time[var3],
+                  lon = lon[var1],
+                  lat = lat[var2],
+                  t2m = value)]
   pixels <- unique(dt[, c("lon", "lat")])
   pixels$geom <- index(pixels)
   dt <- merge(dt, pixels, by = c("lon", "lat"))
@@ -74,13 +76,13 @@ compute_tn <- function(dt) {
                   date7am = as.character(assign_date_7am("time_edt")),
                   date12am = as.character(assign_date_12am("time_edt")))]
 
-  dt_tnwmo <- dt[, .(tnwmo = min("t2m")),
+  dt_tnwmo <- dt[, list(tnwmo = min(t2m)),
     keyby = c("geom", "datetnwmo", "lon", "lat")
   ]
-  dt_tn7am <- dt[, .(tn7am = min("t2m")),
+  dt_tn7am <- dt[, list(tn7am = min(t2m)),
     keyby = c("geom", "date7am", "lon", "lat")
   ]
-  dt_tn12am <- dt[, .(tn12am = min("t2m")),
+  dt_tn12am <- dt[, list(tn12am = min(t2m)),
     keyby = c("geom", "date12am", "lon", "lat")
   ]
 
@@ -127,13 +129,13 @@ compute_tx <- function(dt) {
   dt <- dt[, ":="(datetxwmo = as.character(assign_datetxwmo(time)),
                   date7am = as.character(assign_date_7am("time_edt")),
                   date12am = as.character(assign_date_12am("time_edt")))]
-  dt_txwmo <- dt[, .(txwmo = max("t2m")),
+  dt_txwmo <- dt[, list(txwmo = max(t2m)),
     keyby = c("geom", "datetxwmo", "lon", "lat")
   ]
-  dt_tx7am <- dt[, .(tx7am = max("t2m")),
+  dt_tx7am <- dt[, list(tx7am = max(t2m)),
     keyby = c("geom", "date7am", "lon", "lat")
   ]
-  dt_tx12am <- dt[, .(tx12am = max("t2m")),
+  dt_tx12am <- dt[, list(tx12am = max(t2m)),
     keyby = c("geom", "date12am", "lon", "lat")
   ]
   # merge the 3 data.tables

@@ -30,6 +30,7 @@ create_sets_rndst <- function(obs) {
 #' @returns a list with train and test datatables
 #' (each row corresponds to a lat, lon, date)
 create_sets_rnds <- function(obs) {
+  station <- NULL
   if (!("data.table" %in% class(obs))) {
     stop("obs is not a data.table")
   }
@@ -45,8 +46,8 @@ create_sets_rnds <- function(obs) {
   ntest <- ceiling(n_mon * test_ratio)
   test_i <- sample(1:n_mon, ntest)
   train_i <- setdiff(1:n_mon, test_i)
-  train <- obs["station" %in% monitors[train_i], ]
-  test <- obs["station" %in% monitors[test_i], ]
+  train <- obs[station %in% monitors[train_i], ]
+  test <- obs[station %in% monitors[test_i], ]
   return(list(train = train, test = test))
 }
 
@@ -74,8 +75,8 @@ create_sets_t <- function(obs, test_dates) {
   if (sum(!(test_dates %in% unique(obs$date))) != 0) {
     stop("some of test_dates are not in obs")
   }
-  train <- obs[!("date" %in% test_dates), ]
-  test <- obs["date" %in% test_dates, ]
+  train <- obs[!(date %in% test_dates), ]
+  test <- obs[date %in% test_dates, ]
   if (nrow(train) == 0) {
     warning("train sample is empty")
   }
@@ -90,6 +91,7 @@ create_sets_t <- function(obs, test_dates) {
 #' @returns a list with train and test datatables
 #' (each row corresponds to a lat, lon, date)
 create_sets_s <- function(obs, test_counties) {
+  county <- NULL
   if (!("data.table" %in% class(obs))) {
     stop("obs is not a data.table")
   }
@@ -102,8 +104,8 @@ create_sets_s <- function(obs, test_counties) {
   if (sum(!(test_counties %in% unique(obs$county))) != 0) {
     stop("some of test_counties are not in obs")
   }
-  train <- obs[!("county" %in% test_counties), ]
-  test <- obs["county" %in% test_counties, ]
+  train <- obs[!(county %in% test_counties), ]
+  test <- obs[county %in% test_counties, ]
   if (nrow(train) == 0) {
     warning("train sample is empty")
   }
@@ -118,6 +120,7 @@ create_sets_s <- function(obs, test_counties) {
 #' @returns a list with train and test datatables
 #' (each row corresponds to a lat, lon, date)
 create_sets_net <- function(obs, test_net) {
+  network <- NULL
   if (!("data.table" %in% class(obs))) {
     stop("obs is not a data.table")
   }
@@ -131,8 +134,8 @@ create_sets_net <- function(obs, test_net) {
     stop("some of test_net are not in obs")
   }
 
-  train <- obs[!("network" %in% test_net), ]
-  test <- obs["network" %in% test_net, ]
+  train <- obs[!(network %in% test_net), ]
+  test <- obs[network %in% test_net, ]
 
   if (nrow(train) == 0) {
     warning("train sample is empty")

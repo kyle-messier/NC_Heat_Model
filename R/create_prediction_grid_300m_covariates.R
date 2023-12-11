@@ -85,6 +85,9 @@ create_pred_rds <- function(borders_path,
     }
     list_rast_dates[[date]] <- rast_date
     terra::writeRaster(rast_date,
-                filename = paste0(output_path, "pred_grid_", date, ".tif"))
+                       filename = paste0(output_path,
+                                         "pred_grid_",
+                                         date,
+                                         ".tif"))
   }
 }

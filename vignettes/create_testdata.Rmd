@@ -20,8 +20,8 @@ rtp_subset <- function(sp) {
                      type = "polygons",
                      crs = "EPSG:4326")
   ext_proj <- terra::project(ext, terra::crs(sp))
-  crop_raster <- terra::crop(sp, ext_proj)
-  return(crop_raster)
+  crop_sp <- terra::crop(sp, ext_proj)
+  return(crop_sp)
 }
 ```
 

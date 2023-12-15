@@ -6,18 +6,18 @@ date: "2023-10-26"
 
 ```{r, message=F}
 library(DT)
-source("../R/process_era5_temperature_reanalysis.R")
 ```
 
 Open era5, compute tn and tx and store daily dataframe
 
 ```{r}
-era5 <- convert_era5nc_to_dt()
+era5_file <- "../input/era5_hourly_reanalysis_20220531_20220930.nc"
+era5 <- convert_era5nc_to_dt(era5_file)
 era5_tn <- compute_tn(era5)
 era5_tx <- compute_tx(era5)
 era5_daily <- merge(era5_tn,
   era5_tx,
-  by = c("geom", "date", "lon", "lat")
+  by = c("geom", "time", "lon", "lat")
 )
 ```
 
@@ -26,9 +26,9 @@ fwrite(
   era5_daily,
   paste0(
     "../input/era5_daily_reanalysis_",
-    min(era5_daily$date),
+    min(era5_daily$time),
     "_",
-    max(era5_daily$date),
+    max(era5_daily$time),
     ".csv"
   )
 )
@@ -38,20 +38,18 @@ Convert to SpatRasterDataset
 
 ```{r}
 head(era5_daily)
-era5_daily <- era5_daily %>% rename("time" = "date")
-source("../R/manipulate_spacetime_data.R")
 stdt_obj <- create_stdtobj(era5_daily, "EPSG:4326")
 sprastds <- convert_stdt_spatrastdataset(stdt_obj)
 ```
 
 ```{r}
 # map
-image(sprastds["TNwmo"]$`2022-06-14`)
-image(sprastds["TNwmo"]$`2022-06-15`)
-image(sprastds["TNwmo"]$`2022-06-16`)
+terra::image(sprastds["tnwmo"]$`2022-06-14`)
+terra::image(sprastds["tnwmo"]$`2022-06-15`)
+terra::image(sprastds["tnwmo"]$`2022-06-16`)
 
 # time serie
-one_pixel <- sprastds["TNwmo"][1, 1]
+one_pixel <- sprastds["tnwmo"][1, 1]
 dates <- as.Date(colnames(one_pixel))
 plot(dates, one_pixel)
 ```

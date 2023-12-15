@@ -1,3 +1,8 @@
+#' Give a list of covariate files names
+#'
+#' @param covar_folder character path to covariates files
+#' @returns a list of covariate file paths
+#' @export
 list_covar_nc <- function(covar_folder) {
   covar_files <- list(
     imp = paste0(covar_folder, "NC_imperviousness_2019.tif"),
@@ -24,6 +29,32 @@ list_covar_nc <- function(covar_folder) {
   return(covar_files)
 }
 
+
+#' Give a list of monitor files names
+#'
+#' @param folder character path to monitors folder
+#' @returns a list of monitors file paths
+#' @export
+list_monitors_nc <- function(folder) {
+  files <- list(
+    noaa = paste0(folder,
+                  "NC-AWS-NOAA-dailysummary-20220601-20220831.csv"),
+    econet = paste0(folder,
+                    "ECONET-stations/",
+                    "NC-econet-dailysummary-20220601-20220831.csv"),
+    if (!all(sapply(files, file.exists))) {
+      warning("Some of the files do not exist.")
+    }
+  )
+  return(files)
+}
+
+
+
+#' Building height metadata
+#'
+#' @returns a data.table with all building height metadata
+#' @export
 build_h_table <- function() {
   table <- data.table::as.data.table(
     list(
@@ -44,6 +75,10 @@ build_h_table <- function() {
   return(table)
 }
 
+#' National Land Cover Dataset metadata (NLCD)
+#'
+#' @returns a data.table with all national land cover dataset metadata
+#' @export
 nlcd_table <- function() {
   table <- data.table::as.data.table(
     list(value = c(0, 11, 21, 22, 23, 24, 31, 41, 42, 43, 52,

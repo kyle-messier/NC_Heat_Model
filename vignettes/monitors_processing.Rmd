@@ -1,0 +1,93 @@
+---
+title: "Process and merge all monitors"
+output: html_document
+date: "2023-09-01"
+---
+
+```{r}
+input_path <- "../input/"
+```
+
+# Open, format and add covariates to NOAA aws 
+
+```{r}
+noaa_aws_file <- "NC-AWS-NOAA-dailysummary-20220601-20220831.csv"
+output <- format_noaa_aws(filename = paste0(input_path, noaa_aws_file))
+noaa_obs <- output$obs
+noaa_locs <- output$locs
+```
+
+Tranform to SpatVect
+
+```{r}
+noaa_obs_stdt <- create_stdtobj(stdt = noaa_obs, crs_stdt = "EPSG:4326")
+noaa_obs_v <- convert_stdt_spatvect(stdtobj = noaa_obs_stdt)
+```
+
+Add spatial covariates
+
+```{r}
+files <- list_covar_nc(input_path)
+noaa_obs_v_cov <- add_cov(noaa_obs_v, covar_files = files)
+```
+
+# Open, format and add covariates to ECONET aws 
+
+```{r}
+econet_path <- "../input/ECONET-stations/"
+output <- format_econet_aws(econet_path)
+eco_obs <- output$obs
+eco_locs <- output$locs
+```
+
+Tranform to SpatVect
+
+```{r}
+eco_obs_stdt <- create_stdtobj(stdt = eco_obs, crs_stdt = "EPSG:4326")
+eco_obs_v <- convert_stdt_spatvect(stdtobj = eco_obs_stdt)
+```
+
+Add spatial covariates
+
+```{r}
+files <- list_covar_nc(input_path)
+eco_obs_v_cov <- add_cov(eco_obs_v, covar_files = files)
+```
+
+# Merge NOAA and ECONET data sources
+
+Remove unused columns
+
+```{r}
+eco_obs_v_cov$county_default <- NULL
+eco_obs_v_cov$support <- NULL
+```
+
+Merge all 
+
+```{r}
+monitors <- rbind(noaa_obs_v_cov, eco_obs_v_cov)
+```
+
+Create a SpatVector with spatial informations only 
+
+```{r}
+sp_var <- c("id", "name", "network", "elev", "nb_na_tx", "nb_na_tn", "na_flag",
+            "imp", "tcc", "dem", "slope", "aspect", "roughness", "flowdir",
+            "canopy_h", "build_fp", "build_h", "frac_WTR_150m", "frac_OSD_150m",
+            "frac_LID_150m", "frac_MID_150m", "frac_HID_150m", "frac_BRN_150m",
+            "frac_DFO_150m", "frac_EFO_150m", "frac_MFO_150m", "frac_SHB_150m",
+            "frac_GRS_150m", "frac_PAS_150m", "frac_CRP_150m", "frac_WDW_150m",
+            "frac_EHW_150m", "county")
+locs <- terra::unique(monitors[, sp_var])
+```
+
+# Save observation file as datatable
+
+```{r}
+monitors_dt <- convert_stobj_to_stdt(monitors)
+filename <- paste0("NC-monitors-dailysummary-20220601-20220831",
+                   "-space-time-covariates.csv")
+data.table::fwrite(monitors_dt$stdt, paste0(input_path, filename))
+```
+

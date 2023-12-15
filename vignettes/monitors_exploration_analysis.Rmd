@@ -1,0 +1,92 @@
+---
+title: "Explore monitors data and covariates"
+output: html_document
+time: "2023-08-25"
+---
+
+# Open monitors
+
+```{r}
+input_path <- "../input/"
+filename <- paste0("NC-monitors-dailysummary-20220601-20220831",
+                   "-space-time-covariates.csv")
+monitors_dt <- data.table::fread(paste0(input_path, filename))
+monitors_stdt <- create_stdtobj(monitors_dt, "EPSG:4326")
+monitors <- convert_stdt_spatvect(monitors_stdt)
+```
+
+# Spatial data only
+
+```{r}
+sp_var <- c("id", "name", "network", "elev", "nb_na_tx", "nb_na_tn", "na_flag",
+  "imp", "tcc", "dem", "slope", "aspect", "roughness", "flowdir",
+  "canopy_h", "build_fp", "build_h", "frac_WTR_150m", "frac_OSD_150m",
+  "frac_LID_150m", "frac_MID_150m", "frac_HID_150m", "frac_BRN_150m",
+  "frac_DFO_150m", "frac_EFO_150m", "frac_MFO_150m", "frac_SHB_150m",
+  "frac_GRS_150m", "frac_PAS_150m", "frac_CRP_150m", "frac_WDW_150m",
+  "frac_EHW_150m", "county")
+locs <- terra::unique(monitors[, sp_var]) 
+```
+
+# Difference between elevation in aws data and dem covariate
+
+```{r}
+monitors$dem_diff <- monitors$dem - monitors$elev
+plot(monitors, y = "dem_diff")
+```
+
+Data format conversion for future plots
+
+```{r}
+monitors_stdt <- convert_stobj_to_stdt(monitors)
+monitors_dt <- monitors_stdt$stdt
+monitors_dt <- monitors_dt[, .(lon, lat, time, id, network, tn, tx)]
+monitors_sft <- convert_stdt_sftime(create_stdtobj(monitors_dt,
+                                                   monitors_stdt$crs_stdt))
+
+locs_sf <- sf::st_as_sf(locs, coords = c("lon", "lat"), crs(locs))
+```
+
+
+Plot all monitors with network name
+
+```{r}
+ggplot() +
+  geom_sf(data = locs_sf, aes(shape = as.character(network))) +
+  labs(
+    shape = "network",
+    title = "All air temperature monitors"
+  ) +
+  ggspatial::annotation_scale(
+    location = "bl", pad_x = unit(1, "cm"),
+    pad_y = unit(1, "cm"),
+    height = unit(0.30, "cm"),
+    text_cex = 1
+  ) +
+  ggspatial::annotation_north_arrow(
+    location = "br",
+    which_north = "true",
+    pad_x = unit(0.2, "cm"),
+    pad_y = unit(0.2, "cm")
+  ) +
+  theme(
+    axis.text = element_text(size = 12, family = "serif"),
+    plot.caption = element_text(size = 10, family = "serif"),
+    legend.text = element_text(size = 12, family = "serif"),
+    legend.title = element_text(size = 12, family = "serif"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(colour = "grey")
+  )
+```
+
+Timeseries per network
+
+```{r}
+monitors_sft %>%
+  ggplot() +
+  geom_path(aes(y = tn, x = time), alpha = .1) +
+  facet_wrap(~ network, scales = "fixed")
+```
+
+
+

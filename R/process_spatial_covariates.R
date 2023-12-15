@@ -3,6 +3,7 @@
 #' @param in_filepath A character path to data file with high resolution
 #' @param out_filepath A character path to the folder where the aggregate file
 #' will be stored
+#' @importFrom magrittr "%>%"
 agg_rast <- function(in_filepath, out_filepath, agg_fact = 30) {
   raw <- terra::rast(in_filepath)
   agg <- terra::aggregate(raw, fact = agg_fact, fun = "median") %>%

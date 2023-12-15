@@ -3,17 +3,8 @@ title: "NOAA observations processing and comparison to ERA5"
 date: "2023-12-15"
 author: "Eva Marques"
 output: rmarkdown::html_vignette
-vignette: >
-  %\VignetteIndexEntry{NOAA observations processing and comparison to ERA5}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
-  
 ---
-```{r}
-library(knitr)
-# to base64 encode images
-opts_knit$set(upload.fun = image_uri)
-```
+
 
 ```{r}
 input_path <- "../input/"

@@ -19,13 +19,13 @@ monitors <- convert_stdt_spatvect(monitors_stdt)
 
 ```{r}
 sp_var <- c("id", "name", "network", "elev", "nb_na_tx", "nb_na_tn", "na_flag",
-  "imp", "tcc", "dem", "slope", "aspect", "roughness", "flowdir",
-  "canopy_h", "build_fp", "build_h", "frac_WTR_150m", "frac_OSD_150m",
-  "frac_LID_150m", "frac_MID_150m", "frac_HID_150m", "frac_BRN_150m",
-  "frac_DFO_150m", "frac_EFO_150m", "frac_MFO_150m", "frac_SHB_150m",
-  "frac_GRS_150m", "frac_PAS_150m", "frac_CRP_150m", "frac_WDW_150m",
-  "frac_EHW_150m", "county")
-locs <- terra::unique(monitors[, sp_var]) 
+            "imp", "tcc", "dem", "slope", "aspect", "roughness", "flowdir",
+            "canopy_h", "build_fp", "build_h", "frac_WTR_150m", "frac_OSD_150m",
+            "frac_LID_150m", "frac_MID_150m", "frac_HID_150m", "frac_BRN_150m",
+            "frac_DFO_150m", "frac_EFO_150m", "frac_MFO_150m", "frac_SHB_150m",
+            "frac_GRS_150m", "frac_PAS_150m", "frac_CRP_150m", "frac_WDW_150m",
+            "frac_EHW_150m", "county")
+locs <- terra::unique(monitors[, sp_var])
 ```
 
 # Difference between elevation in aws data and dem covariate

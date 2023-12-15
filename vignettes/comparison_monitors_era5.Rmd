@@ -32,10 +32,10 @@ monitors$dtx12am <- monitors$tx12am - monitors$tx
 monitors_stdt <- convert_stobj_to_stdt(monitors)
 monitors_dt <- monitors_stdt$stdt
 monitors_dt <- monitors_dt[, .(lon, lat, time, id, network, tn, tx,
-                       tnwmo, tn7am, tn12am,
-                       txwmo, tx7am, tx12am,
-                       dtnwmo, dtn7am, dtn12am,
-                       dtxwmo, dtx7am, dtx12am)]
+                               tnwmo, tn7am, tn12am,
+                               txwmo, tx7am, tx12am,
+                               dtnwmo, dtn7am, dtn12am,
+                               dtxwmo, dtx7am, dtx12am)]
 monitors_sft <- convert_stdt_sftime(create_stdtobj(monitors_dt,
                                                    monitors_stdt$crs_stdt))
 head(monitors_sft)
@@ -251,7 +251,7 @@ Map of median difference between obs and reanalysis
 
 ```{r}
 dt_plot <- monitors_dt[, .(dtn = median(dtn12am), dtx = median(dtx12am)),
-                   keyby = c("id", "lon", "lat", "network")]
+                       keyby = c("id", "lon", "lat", "network")]
 
 vect_plot <- terra::vect(dt_plot, geom = c("lon", "lat"),
                          crs = "EPSG:4326", keepgeom = TRUE)

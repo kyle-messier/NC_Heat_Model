@@ -83,6 +83,7 @@ format_noaa_aws <- function(filename) {
 #' the other with the location metadata only
 #' @export
 format_econet_aws <- function(path) {
+  na_flag <- NULL
   files <- list.files(path = path, pattern = "M*.xlsx")
   obs <- do.call("rbind", lapply(files, FUN = function(file) {
     openxlsx::read.xlsx(paste0(path, file))

@@ -3,7 +3,7 @@
 #' @param filename character path to noaa observations file
 #' @returns a list with two datatable, one for the whole observations and
 #' the other with the location metadata only
-#' @importFrom data.table "%>%"
+#' @importFrom magrittr "%>%"
 #' @export
 format_noaa_aws <- function(filename) {
   na_flag <- NULL

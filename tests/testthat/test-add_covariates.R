@@ -72,13 +72,12 @@ test_that("Check add_build_fp works", {
 
 test_that("Check add_county works", {
   county_path <- "../testdata/rtp_counties.shp"
-  
   # -- 1st example: sp_vect is not a SpatVector
   expect_error(add_county(county_path, 123),
                "data_vect is not a terra::SpatVector.")
 
   # -- 2nd example: should work
-  sp_vect <- terra::vect("../testdata/rtp_spatvector.shp") 
+  sp_vect <- terra::vect("../testdata/rtp_spatvector.shp")
   output <- add_county(county_path, sp_vect)
   expect_contains(names(output), "county")
   expect_equal(output[c(1, 20), ]$county, c("Chatham", "Franklin"))
@@ -105,7 +104,7 @@ test_that("Check add_build_h works", {
 
 
 test_that("Check add_nlcd_ratio works", {
-  point_nc1 <- cbind(lon = -79.1, lat = 36.1, var1 = 64) 
+  point_nc1 <- cbind(lon = -79.1, lat = 36.1, var1 = 64)
   point_nc2 <- cbind(lon = -79, lat = 35.9, var1 = 640)
   eg_data <- rbind(point_nc1, point_nc2) %>%
     as.data.frame() %>%
@@ -116,37 +115,36 @@ test_that("Check add_nlcd_ratio works", {
   # -- buf_radius is numeric
   expect_error(
     add_nlcd_ratio(data_vect = eg_data,
-                    buf_radius = "1000",
-                    nlcd_path = path_testdata),
+                   buf_radius = "1000",
+                   nlcd_path = path_testdata),
     "buf_radius is not a numeric."
   )
   # -- buf_radius has likely value
   expect_error(
     add_nlcd_ratio(data_vect = eg_data,
-                    buf_radius = -3,
-                    nlcd_path = path_testdata),
+                   buf_radius = -3,
+                   nlcd_path = path_testdata),
     "buf_radius has not a likely value."
   )
   # -- data_vect is a SpatVector
   expect_error(
     add_nlcd_ratio(data_vect = 12,
-                    nlcd_path = path_testdata),
+                   nlcd_path = path_testdata),
     "data_vect is not a terra::SpatVector."
   )
   # -- nlcd_path is not a character
   expect_error(
     add_nlcd_ratio(data_vect = eg_data,
-                    nlcd_path = 2),
+                   nlcd_path = 2),
     "nlcd_path is not a character."
   )
   # -- nlcd_path does not exist
   nice_sentence <- "That's one small step for a man, a giant leap for mankind."
   expect_error(
     add_nlcd_ratio(data_vect = eg_data,
-                    nlcd_path = nice_sentence),
+                   nlcd_path = nice_sentence),
     "nlcd_path does not exist."
   )
-  
   # CHECK OUTPUT
   buf_radius <- 150
   expect_no_error(add_nlcd_ratio(
@@ -167,11 +165,11 @@ test_that("Check add_nlcd_ratio works", {
   # -- initial names are still in the output SpatVector
   expect_true(all(names(eg_data) %in% names(output)))
   # -- check the value of some of the points in the US
-  #expect_equal(output$frac_EFO_2021_3000m[1], 0.7940682, tolerance = 1e-7)
-  #expect_equal(output$frac_SHB_2021_3000m[2], 0.9987249, tolerance = 1e-7)
+  #todo expect_equal(output$frac_EFO_2021_3000m[1], 0.7940682, tolerance = 1e-7)
+  #todo expect_equal(output$frac_SHB_2021_3000m[2], 0.9987249, tolerance = 1e-7)
   # -- class fraction rows should sum to 1
   expect_equal(rowSums(as.data.frame(output[, 2:ncol(output)])),
-               rep(1, 2),
-               tolerance = 1e-7
+    rep(1, 2),
+    tolerance = 1e-7
   )
 })

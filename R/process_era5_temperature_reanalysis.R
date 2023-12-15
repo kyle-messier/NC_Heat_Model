@@ -157,4 +157,3 @@ compute_tx <- function(dt) {
   dt_tx <- dt_tx[!(time %in% as.Date(range(dt$time)))]
   return(dt_tx)
 }
-

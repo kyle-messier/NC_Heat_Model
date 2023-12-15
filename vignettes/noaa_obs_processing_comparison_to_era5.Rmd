@@ -1,0 +1,511 @@
+---
+title: "NOAA observations processing and comparison to ERA5"
+date: "2023-12-15"
+author: "Eva Marques"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{NOAA observations processing and comparison to ERA5}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+  
+---
+```{r}
+library(knitr)
+# to base64 encode images
+opts_knit$set(upload.fun = image_uri)
+```
+
+```{r}
+input_path <- "../input/"
+```
+
+Open and format noaa aws 
+
+```{r}
+noaa_aws_file <- "NC-AWS-NOAA-dailysummary-20220601-20220831.csv"
+output <- format_noaa_aws(filename = paste0(input_path, noaa_aws_file))
+noaa_obs <- output$obs
+noaa_locs <- output$locs
+```
+
+Tranform to SpatVect
+
+```{r}
+noaa_obs_stdt <- create_stdtobj(stdt = noaa_obs, crs_stdt = "EPSG:4326")
+noaa_obs_v <- convert_stdt_spatvect(stdtobj = noaa_obs_stdt)
+```
+
+Add spatial covariates
+
+```{r}
+files <- list_covar_nc(input_path)
+noaa_obs_v_cov <- add_imp(files$imp, noaa_obs_v) %>%
+  add_tcc(tcc_path = files$tcc) %>%
+  add_terrain(dem_path = files$dem) %>%
+  add_canopy_h(canopy_h_path = files$canopy_h) %>%
+  add_build_fp(build_fp_path = files$build_fp) %>%
+  add_build_h(build_h_path = files$build_h) %>%
+  add_nlcd_ratio(nlcd_path = files$nlcd) %>%
+  add_county(county_path = files$county) %>%
+  add_era5_vect(era5_path = files$era5)
+```
+
+Difference between elevation in aws data and dem covariate
+
+```{r}
+noaa_obs_v_cov$dem_diff <- noaa_obs_v_cov$dem - noaa_obs_v_cov$elev
+plot(noaa_obs_v_cov, y = "dem_diff")
+```
+
+Differences between NOAA obs and ERA5 reanalysis
+
+```{r}
+noaa_obs_v_cov$dtnwmo <- noaa_obs_v_cov$tnwmo - noaa_obs_v_cov$tn
+noaa_obs_v_cov$dtn7am <- noaa_obs_v_cov$tn7am - noaa_obs_v_cov$tn
+noaa_obs_v_cov$dtn12am <- noaa_obs_v_cov$tn12am - noaa_obs_v_cov$tn
+noaa_obs_v_cov$dtxwmo <- noaa_obs_v_cov$txwmo - noaa_obs_v_cov$tx
+noaa_obs_v_cov$dtx7am <- noaa_obs_v_cov$tx7am - noaa_obs_v_cov$tx
+noaa_obs_v_cov$dtx12am <- noaa_obs_v_cov$tx12am - noaa_obs_v_cov$tx
+```
+
+Transform in 4darray for spatial and temporal visualisation
+
+```{r}
+noaa_stdt <- convert_stobj_to_stdt(noaa_obs_v_cov)
+noaa_dt <- noaa_stdt$stdt
+noaa_dt <- noaa_dt[, .(lon, lat, time, id, network, tn, tx,
+                       tnwmo, tn7am, tn12am,
+                       txwmo, tx7am, tx12am,
+                       dtnwmo, dtn7am, dtn12am,
+                       dtxwmo, dtx7am, dtx12am)]
+noaa_sft <- convert_stdt_sftime(create_stdtobj(noaa_dt,noaa_stdt$crs_stdt))
+head(noaa_sft)
+```
+
+```{r}
+pal_rdbu   <- RColorBrewer::brewer.pal(10, "RdBu")
+
+ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) + 
+  geom_point(aes(y = id, x = time, color = dtn7am)) + 
+  scale_color_stepsn(colours = rev(pal_rdbu),
+                     breaks=seq(-10,10,2),
+                     limits = c(-10,10))
+
+ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) + 
+  geom_point(aes(y = id, x = time, color = dtn12am)) + 
+  scale_color_stepsn(colours = rev(pal_rdbu),
+                     breaks=seq(-10,10,2),
+                     limits = c(-10,10))
+
+ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) + 
+  geom_line(aes(y = dtn7am, x = time, group = id, colour = id), alpha = 0.5) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylim(c(-10,15)) + 
+  ylab("era5 - obs") +
+  theme(legend.position = "none")
+
+ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) + 
+  geom_line(aes(y = dtn12am, x = time, group = id, colour = id), alpha = 0.5) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylim(c(-10,15)) +
+  ylab("era5 - obs") +
+  theme(legend.position = "none")
+
+ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) + 
+  geom_boxplot(aes(y = dtn7am, x = time, group = time)) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylim(c(-10,15)) +
+  ylab("era5 - obs") +
+  theme(legend.position = "none")
+
+ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) + 
+  geom_boxplot(aes(y = dtn12am, x = time, group = time)) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylim(c(-10,15)) +
+  ylab("era5 - obs") +
+  theme(legend.position = "none")
+
+```
+
+```{r}
+ggplot(noaa_sft[which(noaa_sft$network == "WBAN"), ]) + 
+  geom_point(aes(y = id, x = time, color = dtn12am)) + 
+  scale_color_stepsn(colours = rev(pal_rdbu),
+                     breaks=seq(-10,10,2),
+                     limits = c(-10,10))
+
+ggplot(noaa_sft[which(noaa_sft$network == "WBAN"), ]) + 
+  geom_line(aes(y = dtn12am, x = time, group = id, colour = id), alpha = 0.5) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylab("era5 - obs") +
+  theme(legend.position = "none")
+
+ggplot(noaa_sft[which(noaa_sft$network == "WBAN"), ]) + 
+  geom_boxplot(aes(y = dtn12am, x = time, group = time)) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylim(c(-10,15)) +
+  ylab("era5 - obs") +
+  theme(legend.position = "none")
+```
+
+```{r}
+ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) + 
+  geom_point(aes(y = id, x = time, color = dtn7am)) + 
+  scale_color_stepsn(colours = rev(pal_rdbu),
+                     breaks=seq(-10,10,2),
+                     limits = c(-10,10))
+
+ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) + 
+  geom_point(aes(y = id, x = time, color = dtn12am)) + 
+  scale_color_stepsn(colours = rev(pal_rdbu),
+                     breaks=seq(-10,10,2),
+                     limits = c(-10,10))
+
+ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) + 
+  geom_line(aes(y = dtn7am, x = time, group = id, colour = id), alpha = 0.5) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylim(c(-10,15)) + 
+  ylab("era5 - obs") +
+  theme(legend.position = "none")
+
+ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) + 
+  geom_line(aes(y = dtn12am, x = time, group = id, colour = id), alpha = 0.5) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylim(c(-10,15)) +
+  ylab("era5 - obs") +
+  theme(legend.position = "none")
+
+ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) + 
+  geom_boxplot(aes(y = dtn12am, x = time, group = time)) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylim(c(-10,15)) +
+  ylab("era5 - obs") +
+  theme(legend.position = "none")
+```
+
+
+```{r}
+ggplot(noaa_sft[which(noaa_sft$network == "CRN"), ]) + 
+  geom_line(aes(y = dtn12am, x = time, group = id, colour = id), alpha = 0.5) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylim(c(-10,15)) + 
+  ylab("TN era5 - obs") +
+  theme(legend.position = "none")
+
+ggplot(noaa_sft[which(noaa_sft$network == "CRN"), ]) + 
+  geom_line(aes(y = dtx12am, x = time, group = id, colour = id), alpha = 0.5) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylim(c(-10,15)) + 
+  ylab("tx era5 - obs") +
+  theme(legend.position = "none")
+```
+```{r}
+ggplot(noaa_sft) + 
+  geom_boxplot(aes(y = dtn12am, x = time, group = time)) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylim(c(-15,15)) +
+  ylab("TN 12am era5 - obs") +
+  theme(legend.position = "none")
+
+ggplot(noaa_sft) + 
+  geom_boxplot(aes(y = dtx12am, x = time, group = time)) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylim(c(-15,15)) +
+  ylab("tx 12am era5 - obs") +
+  theme(legend.position = "none")
+```
+```{r}
+ggplot(noaa_sft) + 
+  geom_point(aes(y = id, x = time, color = dtn12am), shape = 15) + 
+  scale_color_stepsn(colours = rev(pal_rdbu),
+                     breaks=seq(-10,10,2),
+                     limits = c(-10,10))
+
+ggplot(noaa_sft) + 
+  geom_point(aes(y = id, x = time, color = dtx12am), shape = 15) + 
+  scale_color_stepsn(colours = rev(pal_rdbu),
+                     breaks=seq(-10,10,2),
+                     limits = c(-10,10))
+```
+
+```{r}
+ggplot(noaa_sft) + 
+  geom_boxplot(aes(y = dtn12am, group = id)) +
+  facet_wrap(~ network) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylim(c(-15,15)) +
+  ylab("TN 12am era5 - obs") +
+  theme(legend.position = "none")
+
+ggplot(noaa_sft) + 
+  geom_boxplot(aes(y = dtx12am, group = id)) +
+  facet_wrap(~ network) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_hline(yintercept = 2, color = "blue") +
+  geom_hline(yintercept = -2, color = "blue") +
+  ylim(c(-15,15)) +
+  ylab("tx 12am era5 - obs") +
+  theme(legend.position = "none")
+```
+
+Histogram
+
+```{r}
+hist(noaa_sft$dtn12am, breaks = seq(-15, 15, .5), main = "TN 12am era5 - obs")
+hist(noaa_sft$dtx12am, breaks = seq(-15, 15, .5), main = "tx 12am era5 - obs")
+```
+
+
+Map of median difference between obs and reanalysis
+
+```{r}
+dt_plot <- noaa_dt[, .(dtn = median(dtn12am), dtx = median(dtx12am)),
+                     keyby = c("id", "lon", "lat", "network")]
+
+vect_plot <- terra::vect(dt_plot, geom = c("lon", "lat"),
+                 crs = "EPSG:4326", keepgeom = TRUE)
+
+nc_borders <- terra::vect(files$county) %>% 
+  terra::project(terra::crs(vect_plot))
+
+ggplot() +
+  tidyterra::geom_spatvector(
+    data = vect_plot,
+    aes(fill = dtn, shape = network),
+    color = "black", size = 2
+  ) +
+  geom_sf(
+    data = sf::st_as_sf(nc_borders), aes(geometry = geometry),
+    colour = "black", linewidth = .3, fill = NA
+  ) +
+  scale_fill_stepsn(colours = c("navyblue", "white", "red"),
+                    breaks = seq(-7, 7, 1), limits = c(-7, 7)) +
+  scale_shape_manual(values = c(21, 22, 23, 24),
+                     labels = c("COOP" = "COOP", "CRN" = "CRN", "RAWS" = "RAWS",
+                                "WBAN" = "WBAN")) +
+  labs(
+    fill = "",
+    title = "median(tn(era5)-tn(obs))",
+    subtitle = ""
+  ) +
+  ggspatial::annotation_scale(
+    location = "bl", pad_x = unit(1, "cm"),
+    pad_y = unit(1, "cm"),
+    height = unit(0.30, "cm"),
+    text_cex = 1
+  ) +
+  ggspatial::annotation_north_arrow(
+    location = "br",
+    which_north = "true",
+    pad_x = unit(0.2, "cm"),
+    pad_y = unit(0.2, "cm")
+  ) +
+  theme(
+    axis.text = element_text(size = 12, family = "serif"),
+    plot.caption = element_text(size = 10, family = "serif"),
+    legend.text = element_text(size = 12, family = "serif"),
+    legend.title = element_text(size = 12, family = "serif"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(colour = "grey")
+  )
+ggsave("../output/era5_observations_gap_map_TN.png",
+       width = 7, height = 4, dpi = 300)
+
+ggplot() +
+  tidyterra::geom_spatvector(
+    data = vect_plot,
+    aes(fill = dtx, shape = network),
+    color = "black", size = 2
+  ) +
+  geom_sf(
+    data = sf::st_as_sf(nc_borders), aes(geometry = geometry),
+    colour = "black", linewidth = .3, fill = NA
+  ) +
+  scale_fill_stepsn(colours = c("navyblue", "white", "red"),
+                    breaks = seq(-7, 7, 1), limits = c(-7, 7)) +
+  scale_shape_manual(values = c(21, 22, 23, 24),
+                     labels = c("COOP" = "COOP", "CRN" = "CRN", "RAWS" = "RAWS",
+                                "WBAN" = "WBAN")) +
+  labs(
+    fill = "",
+    title = "median(tx(era5)-tx(obs))",
+    subtitle = ""
+  ) +
+  ggspatial::annotation_scale(
+    location = "bl", pad_x = unit(1, "cm"),
+    pad_y = unit(1, "cm"),
+    height = unit(0.30, "cm"),
+    text_cex = 1
+  ) +
+  ggspatial::annotation_north_arrow(
+    location = "br",
+    which_north = "true",
+    pad_x = unit(0.2, "cm"),
+    pad_y = unit(0.2, "cm")
+  ) +
+  theme(
+    axis.text = element_text(size = 12, family = "serif"),
+    plot.caption = element_text(size = 10, family = "serif"),
+    legend.text = element_text(size = 12, family = "serif"),
+    legend.title = element_text(size = 12, family = "serif"),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_line(colour = "grey")
+  )
+ggsave("../output/era5_observations_gap_map_TX.png",
+       width = 7, height = 4, dpi = 300)
+```
+
+
+Boxplot per id
+
+```{r}
+ptn <- ggplot(noaa_dt) +
+  geom_boxplot(aes(y = dtn12am, x = id, group = id, color = network)) +
+  scale_color_manual(values = c("lightcoral", "cyan3", "purple", "olivedrab3"),
+                     labels = c("COOP" = "COOP", "CRN" = "CRN", "RAWS" = "RAWS",
+                                "WBAN" = "WBAN")) +
+  geom_hline(aes(yintercept = 0), color = "red") +
+  geom_hline(aes(yintercept = 1), linetype = 2, color = "blue") +
+  geom_hline(aes(yintercept = -1), linetype = 2, color = "blue") +
+  geom_hline(aes(yintercept = 5), linetype = 2, color = "blue") +
+  geom_hline(aes(yintercept = -5), linetype = 2, color = "blue") +
+  theme(axis.text.x = element_blank())
+
+ptx <- ggplot(noaa_dt) +
+  geom_boxplot(aes(y = dtx12am, x = id, group = id, color = network)) +
+  scale_color_manual(values = c("lightcoral", "cyan3", "purple", "olivedrab3"),
+                     labels = c("COOP" = "COOP", "CRN" = "CRN", "RAWS" = "RAWS",
+                                "WBAN" = "WBAN")) +
+  geom_hline(aes(yintercept = 0), color = "red") +
+  geom_hline(aes(yintercept = 1), linetype = 2, color = "blue") +
+  geom_hline(aes(yintercept = -1), linetype = 2, color = "blue") +
+  geom_hline(aes(yintercept = 5), linetype = 2, color = "blue") +
+  geom_hline(aes(yintercept = -5), linetype = 2, color = "blue") +
+  theme(axis.text.x = element_blank())
+
+library(ggpubr)
+ggarrange(ptn, ptx, nrow = 2)
+ggsave("../output/error_boxplot_per_stations.png",
+       width = 15, height = 7, dpi = 300)
+```
+
+Regression plots
+
+```{r}
+ggplot(noaa_dt[which(noaa_dt$id %in% unique(noaa_dt$id)[1:40])]) +
+  geom_point(aes(x = tn12am, y = tn), alpha = .5) +
+  facet_wrap(~id) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = 1, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = -1, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = 5, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = -5, slope = 1, color = "blue", linetype = "dashed",
+              size = .5)
+
+ggplot(noaa_dt[which(noaa_dt$id %in% unique(noaa_dt$id)[41:80])]) +
+  geom_point(aes(x = tn12am, y = tn), alpha = .5) +
+  facet_wrap(~id) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = 1, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = -1, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = 5, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = -5, slope = 1, color = "blue", linetype = "dashed",
+              size = .5)
+
+ggplot(noaa_dt[which(noaa_dt$id %in% unique(noaa_dt$id)[81:120])]) +
+  geom_point(aes(x = tn12am, y = tn), alpha = .5) +
+  facet_wrap(~id) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = 1, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = -1, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = 5, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = -5, slope = 1, color = "blue", linetype = "dashed",
+              size = .5)
+
+ggplot(noaa_dt[which(noaa_dt$id %in% unique(noaa_dt$id)[121:166])]) +
+  geom_point(aes(x = tn12am, y = tn), alpha = .5) +
+  facet_wrap(~id) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = 1, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = -1, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = 5, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = -5, slope = 1, color = "blue", linetype = "dashed",
+              size = .5)
+
+ggplot(noaa_dt) +
+  geom_point(aes(x = tn12am, y = tn), alpha = .1) +
+  facet_wrap(~network) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = 1, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = -1, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = 5, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = -5, slope = 1, color = "blue", linetype = "dashed",
+              size = .5)
+ggsave("../output/scatterplot_era5_vs_obs_TN.png",
+       width = 5, height = 5, dpi = 300)
+
+ggplot(noaa_dt) +
+  geom_point(aes(x = tx12am, y = tx), alpha = .1) +
+  facet_wrap(~network) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = 1, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = -1, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = 5, slope = 1, color = "blue", linetype = "dashed",
+              size = .5) +
+  geom_abline(intercept = -5, slope = 1, color = "blue", linetype = "dashed",
+              size = .5)
+ggsave("../output/scatterplot_era5_vs_obs_TX.png",
+       width = 5, height = 5, dpi = 300)
+```
+

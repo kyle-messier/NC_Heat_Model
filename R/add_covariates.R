@@ -67,29 +67,49 @@ add_dem <- function(dem_path, sp_vect) {
   return(sp_vect_cov)
 }
 
-#' Add terrain covariates to a terra::SpatRaster
+#' Add terrain covariates to a terra::SpatRaster (dem included)
 #'
-#' @param rast_dem a terra::SpatRaster with the column "dem"
-#' @returns the same terra::SpatRaster with other terrain covariates
+#' @param dem_path a path to dem raster 
+#' @param sp_vect a terra::SpatVector
+#' @returns the same terra::SpatVector with terrain covariates
+#' (dem, slope, aspect, roughness, flowdir)
 #' @export
-add_terrain <- function(rast_dem) {
-  if (!("dem" %in% names(rast_dem))) {
-    stop("dem is not in raster's layers or mispelled.")
-  }
-  rast_dem$slope <- terra::terrain(rast_dem$dem, "slope")
+add_terrain <- function(dem_path, sp_vect) {
+  dem_rast <- terra::rast(dem_path)
+  names(dem_rast) <- "dem"
+  dem_rast$slope <- terra::terrain(dem_rast$dem, "slope")
   # aspect is in degrees, clockwise from North
   # if no slope: 90
-  rast_dem$aspect <- terra::terrain(rast_dem$dem, "aspect")
+  dem_rast$aspect <- terra::terrain(dem_rast$dem, "aspect")
   # Roughness is the difference between the maximum and the
   # minimum value of a cell and its 8 surrounding cells.
-  rast_dem$roughness <- terra::terrain(rast_dem$dem, "roughness")
+  dem_rast$roughness <- terra::terrain(dem_rast$dem, "roughness")
   # Values encoded as power of 2 (x is the cell): IT IS A DISCRETE VARIABLE
   # 32 64 128
   # 16 x   1
   # 8  4  2
   # Cells are set to 0 if no lower neighboring.
-  rast_dem$flowdir <- terra::terrain(rast_dem$dem, "flowdir")
-  return(rast_dem)
+  dem_rast$flowdir <- terra::terrain(dem_rast$dem, "flowdir")
+  # extract at sp_vect locations
+  sp_vect_cov <- terra::project(sp_vect, terra::crs(dem_rast)) %>%
+    terra::extract(x = dem_rast, bind = TRUE) %>%
+    terra::project(terra::crs(sp_vect))
+  if (any(is.na(sp_vect_cov$dem))) {
+    stop("NAs found in dem column")
+  }
+  if (any(is.na(sp_vect_cov$slope))) {
+    stop("NAs found in slope column")
+  }
+  if (any(is.na(sp_vect_cov$aspect))) {
+    stop("NAs found in aspect column")
+  }
+  if (any(is.na(sp_vect_cov$roughness))) {
+    stop("NAs found in roughness column")
+  }
+  if (any(is.na(sp_vect_cov$flowdir))) {
+    stop("NAs found in flowdir column")
+  }
+  return(sp_vect_cov)
 }
 
 
@@ -174,34 +194,73 @@ add_build_h <- function(
   return(sp_vect_cov)
 }
 
-#' Compute land cover classes ratio in circle buffers arount points
+
+#' Compute land cover classes ratio in circle buffers around points
 #'
-#' @param sp_vect terra::SpatVector of points geometry
-#' @param nlcd national land cover dataset as a terra::SpatRaster
-#' @param buf_radius numeric giving the radius of buffer around points
+#' @param data_vect terra::SpatVector of points geometry
+#' @param buf_radius numeric (non-negative) giving the
+#' radius of buffer around points
+#' @param year numeric giving the year of NLCD data used
+#' @param nlcd_path character giving nlcd data path
 #' @export
-add_nlcd_class_ratio <- function(nlcd_path, sp_vect, buf_radius = 150) {
+add_nlcd_ratio <- function(data_vect,
+                           buf_radius = 150,
+                           nlcd_path) {
+  # check inputs
+  if (!is.numeric(buf_radius)) {
+    stop("buf_radius is not a numeric.")
+  }
+  if (buf_radius <= 0) {
+    stop("buf_radius has not a likely value.")
+  }
+  if (class(data_vect)[1] != "SpatVector") {
+    stop("data_vect is not a terra::SpatVector.")
+  }
+  if (!is.character(nlcd_path)) {
+    stop("nlcd_path is not a character.")
+  }
+  if (!file.exists(nlcd_path)) {
+    stop("nlcd_path does not exist.")
+  }
+  # open nlcd file corresponding to the year
   nlcd <- terra::rast(nlcd_path)
-  # create circle buffers with 150m radius
-  bufs_pol <- terra::buffer(sp_vect, width = buf_radius)
-  bufs_pol <- sf::st_as_sf(bufs_pol)
-  # crop nlcd raster
-  extent <- terra::ext(bufs_pol)
-  nlcd_cropped <- terra::crop(nlcd, extent)
+  data_vect_b <- data_vect
+  if (!terra::same.crs(data_vect_b, nlcd)) {
+    data_vect_b <- terra::project(data_vect_b, terra::crs(nlcd))
+  }
+  # create circle buffers with buf_radius
+  bufs_pol <- terra::buffer(data_vect_b, width = buf_radius) %>%
+    sf::st_as_sf()
   # ratio of each nlcd class per buffer
-  nlcd_at_bufs <- exactexctractr::exact_extract(nlcd_cropped,
-    sf::st_geometry(bufs_pol),
-    fun = "frac",
-    stack_apply = TRUE,
-    progress = FALSE
-  )
-  new_sp_vect <- nlcd_at_bufs[names(nlcd_at_bufs)[grepl(
+  nlcd_at_bufs <- exactextractr::exact_extract(nlcd,
+                                               sf::st_geometry(bufs_pol),
+                                               fun = "frac",
+                                               stack_apply = TRUE,
+                                               progress = FALSE)
+  # select only the columns of interest
+  nlcd_at_bufs <- nlcd_at_bufs[names(nlcd_at_bufs)[grepl(
     "frac_",
-    names(nlcd_at_bufs)
-  )]]
-  new_sp_vect <- cbind(sp_vect, new_sp_vect)
-  return(new_sp_vect)
+    names(nlcd_at_bufs))]]
+  # change column names
+  fpath <- system.file("extdata", "nlcd_classes.csv", package = "HeatModel")
+  nlcd_classes <- read.csv(fpath)
+  nlcd_names <- names(nlcd_at_bufs) %>%
+    sub(pattern = "frac_", replacement = "") %>%
+    as.numeric()
+  nlcd_names <- nlcd_classes[nlcd_classes$value %in% nlcd_names, c("class")]
+  new_names <- sapply(
+    nlcd_names,
+    function(x) {
+      paste0("frac_", x, "_", buf_radius, "m")
+    }
+  )
+  names(nlcd_at_bufs) <- new_names
+  # merge data_vect with nlcd class fractions (and reproject)
+  new_data_vect <- cbind(data_vect_b, nlcd_at_bufs) %>%
+    terra::project(terra::crs(data_vect))
+  return(new_data_vect)
 }
+
 
 #' Add corresponding NC county to a datatable containing lat, lon
 #'
@@ -209,34 +268,20 @@ add_nlcd_class_ratio <- function(nlcd_path, sp_vect, buf_radius = 150) {
 #' @param datatable A data.table object with columns "lat", "lon"
 #' @param crs A character containing the crs of spatial data
 #' @returns same datatable object with "county" columns
-add_county <- function(county_path, datatable, crs) {
+add_county <- function(county_path, data_vect) {
   if (!file.exists(county_path)) {
     stop("county_path does not exist")
   }
-  if (class(crs) != "character") {
-    stop("crs is not a character")
-  }
-  if (!("data.table" %in% class(datatable))) {
-    stop("datatable is not a data.table")
-  }
-  if (!("lat" %in% colnames(datatable))) {
-    stop("datatable does not contain lat column")
-  }
-  if (!("lon" %in% colnames(datatable))) {
-    stop("datatable does not contain lon column")
+  if (class(data_vect)[1] != "SpatVector") {
+    stop("data_vect is not a terra::SpatVector.")
   }
   cty_borders <- terra::vect(county_path)
-  if (!terra::same.crs(cty_borders, crs)) {
-    cty_borders <- terra::project(cty_borders, crs)
+  if (!terra::same.crs(cty_borders, data_vect)) {
+    cty_borders <- terra::project(cty_borders, data_vect)
   }
-  loc <- unique(datatable[, c("lon", "lat")]) %>%
-    terra::vect(geom = c("lon", "lat"), crs = crs, keepgeom = TRUE)
+  loc <- data_vect
   loc$county <- terra::extract(cty_borders[, c("County")], loc)$County
-  datatable <- merge(datatable,
-    loc[, c("lon", "lat", "county")],
-    by = c("lon", "lat")
-  )
-  return(datatable)
+  return(loc)
 }
 
 
@@ -246,9 +291,8 @@ add_county <- function(county_path, datatable, crs) {
 #' @param era5_path A character path to era5 csv
 #' @returns a SpatVect in long format, each line corresponds to 1 lat-lon-time
 #' @export
-add_era5_vect <- function(data_vect, era5_path) {
+add_era5_vect_old <- function(data_vect, era5_path) {
   era5 <- data.table::fread(era5_path) %>%
-    dplyr::rename(time = date) %>%
     HeatModel::create_stdtobj(crs_stdt = "EPSG:4326") %>%
     HeatModel::convert_stdt_spatrastdataset()
   # empty prediction SpatVector
@@ -271,6 +315,62 @@ add_era5_vect <- function(data_vect, era5_path) {
 }
 
 
+
+#' Add minimum temperature computed from ERA5 reanalysis to SpatVector
+#'
+#' @param data_vect An stdtobj
+#' @param era5_path A character path to era5 csv
+#' @returns a SpatVect in long format, each line corresponds to 1 lat-lon-time
+#' @export
+add_era5_vect <- function(data_vect, era5_path) {
+  era5 <- data.table::fread(era5_path) %>%
+    HeatModel::create_stdtobj(crs_stdt = "EPSG:4326") %>%
+    HeatModel::convert_stdt_spatrastdataset()
+  # empty prediction SpatVector
+  new_data_vect <- terra::vect(terra::geom(data_vect)[, c("x", "y")],
+                               type = "points",
+                               crs = terra::crs(data_vect)
+  )
+  # extract each daily covariate based on era5 and convert to raster
+  era5_dt <- list()
+  for (i in 2:7) {
+    era5_dt[[i - 1]] <- terra::project(
+      new_data_vect,
+      terra::crs(era5[[i]])
+    ) %>%
+      terra::extract(x = era5[[i]], bind = TRUE) %>%
+      terra::project(terra::crs(new_data_vect)) %>%
+      terra::as.data.frame(geom = "XY") %>%
+      dplyr::rename("lon" = "x") %>%
+      dplyr::rename("lat" = "y") %>%
+      data.table::as.data.table() %>%
+      data.table::melt(id.vars = c("lon", "lat"),
+                       variable.name = "time",
+                       value.name = names(era5)[i])
+    
+  }
+  data_era5 <- cbind(era5_dt[[1]],
+        era5_dt[[2]][,4],
+        era5_dt[[3]][,4],
+        era5_dt[[4]][,4],
+        era5_dt[[5]][,4],
+        era5_dt[[6]][,4])
+  data_dt <- as.data.frame(data_vect, geom = "XY") %>%
+    dplyr::rename("lon" = "x") %>%
+    dplyr::rename("lat" = "y") %>%
+    data.table::as.data.table()
+  data_era5[, "time" := as.factor(time)]
+  data_dt[, "time" := as.factor(time)]
+  output_vect <- unique(merge(data_dt,
+                           data_era5,
+                           by = c("lon", "lat", "time"))) %>%
+    terra::vect(geom = c("lon", "lat"),
+                crs = terra::crs(new_data_vect))
+
+  return(output_vect)
+}
+
+
 #' Add minimum temperature computed from ERA5 reanalysis to a SpatRaster
 #'
 #' @param data_rast A SpatRaster
@@ -279,7 +379,6 @@ add_era5_vect <- function(data_vect, era5_path) {
 #' @export
 add_era5_rast <- function(data_rast, era5_path = era5) {
   era5 <- data.table::fread(era5_path) %>%
-    dplyr::rename(time = date) %>%
     HeatModel::create_stdtobj(crs_stdt = "EPSG:4326") %>%
     HeatModel::convert_stdt_spatrastdataset()
   data_vect <- terra::as.points(data_rast)

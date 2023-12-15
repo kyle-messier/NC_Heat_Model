@@ -44,7 +44,7 @@ test_that("Check check_obs works", {
   expect_no_error(check_obs(obs, metadata, predictors, predicted))
   expect_message(
     check_obs(obs, metadata, predictors, predicted),
-    message("observations content: ", emoji("white_check_mark"))
+    message("observations content checked")
   )
 })
 
@@ -80,9 +80,6 @@ test_that("Check check_pred_grid works", {
   expect_no_error(check_pred_grid(obs, metadata, predictors))
   expect_message(
     check_pred_grid(obs, metadata, predictors),
-    message(
-      "prediction grid content: ",
-      emoji("white_check_mark")
-    )
+    message("prediction grid content checked")
   )
 })

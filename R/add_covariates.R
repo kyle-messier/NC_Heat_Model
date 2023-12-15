@@ -69,7 +69,7 @@ add_dem <- function(dem_path, sp_vect) {
 
 #' Add terrain covariates to a terra::SpatRaster (dem included)
 #'
-#' @param dem_path a path to dem raster 
+#' @param dem_path a path to dem raster
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with terrain covariates
 #' (dem, slope, aspect, roughness, flowdir)
@@ -238,9 +238,8 @@ add_nlcd_ratio <- function(data_vect,
                                                stack_apply = TRUE,
                                                progress = FALSE)
   # select only the columns of interest
-  nlcd_at_bufs <- nlcd_at_bufs[names(nlcd_at_bufs)[grepl(
-    "frac_",
-    names(nlcd_at_bufs))]]
+  nlcd_at_bufs <- nlcd_at_bufs[names(nlcd_at_bufs)[grepl("frac_",
+                                                         names(nlcd_at_bufs))]]
   # change column names
   fpath <- system.file("extdata", "nlcd_classes.csv", package = "HeatModel")
   nlcd_classes <- read.csv(fpath)
@@ -328,8 +327,8 @@ add_era5_vect <- function(data_vect, era5_path) {
     HeatModel::convert_stdt_spatrastdataset()
   # empty prediction SpatVector
   new_data_vect <- terra::vect(terra::geom(data_vect)[, c("x", "y")],
-                               type = "points",
-                               crs = terra::crs(data_vect)
+    type = "points",
+    crs = terra::crs(data_vect)
   )
   # extract each daily covariate based on era5 and convert to raster
   era5_dt <- list()
@@ -347,14 +346,13 @@ add_era5_vect <- function(data_vect, era5_path) {
       data.table::melt(id.vars = c("lon", "lat"),
                        variable.name = "time",
                        value.name = names(era5)[i])
-    
   }
   data_era5 <- cbind(era5_dt[[1]],
-        era5_dt[[2]][,4],
-        era5_dt[[3]][,4],
-        era5_dt[[4]][,4],
-        era5_dt[[5]][,4],
-        era5_dt[[6]][,4])
+                     era5_dt[[2]][, 4],
+                     era5_dt[[3]][, 4],
+                     era5_dt[[4]][, 4],
+                     era5_dt[[5]][, 4],
+                     era5_dt[[6]][, 4])
   data_dt <- as.data.frame(data_vect, geom = "XY") %>%
     dplyr::rename("lon" = "x") %>%
     dplyr::rename("lat" = "y") %>%
@@ -362,11 +360,9 @@ add_era5_vect <- function(data_vect, era5_path) {
   data_era5[, "time" := as.factor(time)]
   data_dt[, "time" := as.factor(time)]
   output_vect <- unique(merge(data_dt,
-                           data_era5,
-                           by = c("lon", "lat", "time"))) %>%
-    terra::vect(geom = c("lon", "lat"),
-                crs = terra::crs(new_data_vect))
-
+                              data_era5,
+                              by = c("lon", "lat", "time"))) %>%
+    terra::vect(geom = c("lon", "lat"), crs = terra::crs(new_data_vect))
   return(output_vect)
 }
 

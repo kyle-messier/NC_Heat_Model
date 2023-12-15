@@ -33,7 +33,9 @@ create_pred_rds <- function(borders_path,
   # Building height
   pred_vect <- add_build_h(covar_path$build_h, sp_vect = pred_vect)
   # Land cover ratio
-  pred_vect <- add_nlcd_class_ratio(covar_path$nlcd, sp_vect = pred_vect)
+  pred_vect <- add_nlcd_ratio(data_vect = pred_vect,
+                              buf_radius = 150,
+                              nlcd_path = covar_path$nlcd)
   # turn into a raster
   pred_rast <- terra::rasterize(pred_vect,
     pred_rast,

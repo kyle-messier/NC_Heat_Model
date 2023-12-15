@@ -78,71 +78,71 @@ noaa_dt <- noaa_dt[, .(lon, lat, time, id, network, tn, tx,
                        txwmo, tx7am, tx12am,
                        dtnwmo, dtn7am, dtn12am,
                        dtxwmo, dtx7am, dtx12am)]
-noaa_sft <- convert_stdt_sftime(create_stdtobj(noaa_dt,noaa_stdt$crs_stdt))
+noaa_sft <- convert_stdt_sftime(create_stdtobj(noaa_dt, noaa_stdt$crs_stdt))
 head(noaa_sft)
 ```
 
 ```{r}
 pal_rdbu   <- RColorBrewer::brewer.pal(10, "RdBu")
 
-ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) + 
-  geom_point(aes(y = id, x = time, color = dtn7am)) + 
+ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) +
+  geom_point(aes(y = id, x = time, color = dtn7am)) +
   scale_color_stepsn(colours = rev(pal_rdbu),
-                     breaks=seq(-10,10,2),
-                     limits = c(-10,10))
+                     breaks = seq(-10, 10, 2),
+                     limits = c(-10, 10))
 
-ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) + 
-  geom_point(aes(y = id, x = time, color = dtn12am)) + 
+ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) +
+  geom_point(aes(y = id, x = time, color = dtn12am)) +
   scale_color_stepsn(colours = rev(pal_rdbu),
-                     breaks=seq(-10,10,2),
-                     limits = c(-10,10))
+                     breaks = seq(-10, 10, 2),
+                     limits = c(-10, 10))
 
-ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) + 
+ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) +
   geom_line(aes(y = dtn7am, x = time, group = id, colour = id), alpha = 0.5) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
   geom_hline(yintercept = -2, color = "blue") +
-  ylim(c(-10,15)) + 
+  ylim(c(-10, 15)) +
   ylab("era5 - obs") +
   theme(legend.position = "none")
 
-ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) + 
+ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) +
   geom_line(aes(y = dtn12am, x = time, group = id, colour = id), alpha = 0.5) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
   geom_hline(yintercept = -2, color = "blue") +
-  ylim(c(-10,15)) +
+  ylim(c(-10, 15)) +
   ylab("era5 - obs") +
   theme(legend.position = "none")
 
-ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) + 
+ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) +
   geom_boxplot(aes(y = dtn7am, x = time, group = time)) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
   geom_hline(yintercept = -2, color = "blue") +
-  ylim(c(-10,15)) +
+  ylim(c(-10, 15)) +
   ylab("era5 - obs") +
   theme(legend.position = "none")
 
-ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) + 
+ggplot(noaa_sft[which(noaa_sft$network == "COOP"), ]) +
   geom_boxplot(aes(y = dtn12am, x = time, group = time)) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
   geom_hline(yintercept = -2, color = "blue") +
-  ylim(c(-10,15)) +
+  ylim(c(-10, 15)) +
   ylab("era5 - obs") +
   theme(legend.position = "none")
 
 ```
 
 ```{r}
-ggplot(noaa_sft[which(noaa_sft$network == "WBAN"), ]) + 
-  geom_point(aes(y = id, x = time, color = dtn12am)) + 
+ggplot(noaa_sft[which(noaa_sft$network == "WBAN"), ]) +
+  geom_point(aes(y = id, x = time, color = dtn12am)) +
   scale_color_stepsn(colours = rev(pal_rdbu),
-                     breaks=seq(-10,10,2),
-                     limits = c(-10,10))
+                     breaks = seq(-10, 10, 2),
+                     limits = c(-10, 10))
 
-ggplot(noaa_sft[which(noaa_sft$network == "WBAN"), ]) + 
+ggplot(noaa_sft[which(noaa_sft$network == "WBAN"), ]) +
   geom_line(aes(y = dtn12am, x = time, group = id, colour = id), alpha = 0.5) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
@@ -150,128 +150,128 @@ ggplot(noaa_sft[which(noaa_sft$network == "WBAN"), ]) +
   ylab("era5 - obs") +
   theme(legend.position = "none")
 
-ggplot(noaa_sft[which(noaa_sft$network == "WBAN"), ]) + 
+ggplot(noaa_sft[which(noaa_sft$network == "WBAN"), ]) +
   geom_boxplot(aes(y = dtn12am, x = time, group = time)) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
   geom_hline(yintercept = -2, color = "blue") +
-  ylim(c(-10,15)) +
+  ylim(c(-10, 15)) +
   ylab("era5 - obs") +
   theme(legend.position = "none")
 ```
 
 ```{r}
-ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) + 
-  geom_point(aes(y = id, x = time, color = dtn7am)) + 
+ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) +
+  geom_point(aes(y = id, x = time, color = dtn7am)) +
   scale_color_stepsn(colours = rev(pal_rdbu),
-                     breaks=seq(-10,10,2),
-                     limits = c(-10,10))
+                     breaks = seq(-10, 10, 2),
+                     limits = c(-10, 10))
 
-ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) + 
-  geom_point(aes(y = id, x = time, color = dtn12am)) + 
+ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) +
+  geom_point(aes(y = id, x = time, color = dtn12am)) +
   scale_color_stepsn(colours = rev(pal_rdbu),
-                     breaks=seq(-10,10,2),
-                     limits = c(-10,10))
+                     breaks = seq(-10, 10, 2),
+                     limits = c(-10, 10))
 
-ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) + 
+ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) +
   geom_line(aes(y = dtn7am, x = time, group = id, colour = id), alpha = 0.5) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
   geom_hline(yintercept = -2, color = "blue") +
-  ylim(c(-10,15)) + 
+  ylim(c(-10, 15)) +
   ylab("era5 - obs") +
   theme(legend.position = "none")
 
-ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) + 
+ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) +
   geom_line(aes(y = dtn12am, x = time, group = id, colour = id), alpha = 0.5) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
   geom_hline(yintercept = -2, color = "blue") +
-  ylim(c(-10,15)) +
+  ylim(c(-10, 15)) +
   ylab("era5 - obs") +
   theme(legend.position = "none")
 
-ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) + 
+ggplot(noaa_sft[which(noaa_sft$network == "RAWS"), ]) +
   geom_boxplot(aes(y = dtn12am, x = time, group = time)) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
   geom_hline(yintercept = -2, color = "blue") +
-  ylim(c(-10,15)) +
+  ylim(c(-10, 15)) +
   ylab("era5 - obs") +
   theme(legend.position = "none")
 ```
 
 
 ```{r}
-ggplot(noaa_sft[which(noaa_sft$network == "CRN"), ]) + 
+ggplot(noaa_sft[which(noaa_sft$network == "CRN"), ]) +
   geom_line(aes(y = dtn12am, x = time, group = id, colour = id), alpha = 0.5) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
   geom_hline(yintercept = -2, color = "blue") +
-  ylim(c(-10,15)) + 
+  ylim(c(-10, 15)) +
   ylab("TN era5 - obs") +
   theme(legend.position = "none")
 
-ggplot(noaa_sft[which(noaa_sft$network == "CRN"), ]) + 
+ggplot(noaa_sft[which(noaa_sft$network == "CRN"), ]) +
   geom_line(aes(y = dtx12am, x = time, group = id, colour = id), alpha = 0.5) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
   geom_hline(yintercept = -2, color = "blue") +
-  ylim(c(-10,15)) + 
+  ylim(c(-10, 15)) +
   ylab("tx era5 - obs") +
   theme(legend.position = "none")
 ```
 ```{r}
-ggplot(noaa_sft) + 
+ggplot(noaa_sft) +
   geom_boxplot(aes(y = dtn12am, x = time, group = time)) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
   geom_hline(yintercept = -2, color = "blue") +
-  ylim(c(-15,15)) +
+  ylim(c(-15, 15)) +
   ylab("TN 12am era5 - obs") +
   theme(legend.position = "none")
 
-ggplot(noaa_sft) + 
+ggplot(noaa_sft) +
   geom_boxplot(aes(y = dtx12am, x = time, group = time)) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
   geom_hline(yintercept = -2, color = "blue") +
-  ylim(c(-15,15)) +
+  ylim(c(-15, 15)) +
   ylab("tx 12am era5 - obs") +
   theme(legend.position = "none")
 ```
 ```{r}
-ggplot(noaa_sft) + 
-  geom_point(aes(y = id, x = time, color = dtn12am), shape = 15) + 
+ggplot(noaa_sft) +
+  geom_point(aes(y = id, x = time, color = dtn12am), shape = 15) +
   scale_color_stepsn(colours = rev(pal_rdbu),
-                     breaks=seq(-10,10,2),
-                     limits = c(-10,10))
+                     breaks = seq(-10, 10, 2),
+                     limits = c(-10, 10))
 
-ggplot(noaa_sft) + 
-  geom_point(aes(y = id, x = time, color = dtx12am), shape = 15) + 
+ggplot(noaa_sft) +
+  geom_point(aes(y = id, x = time, color = dtx12am), shape = 15) +
   scale_color_stepsn(colours = rev(pal_rdbu),
-                     breaks=seq(-10,10,2),
-                     limits = c(-10,10))
+                     breaks = seq(-10, 10, 2),
+                     limits = c(-10, 10))
 ```
 
 ```{r}
-ggplot(noaa_sft) + 
+ggplot(noaa_sft) +
   geom_boxplot(aes(y = dtn12am, group = id)) +
   facet_wrap(~ network) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
   geom_hline(yintercept = -2, color = "blue") +
-  ylim(c(-15,15)) +
+  ylim(c(-15, 15)) +
   ylab("TN 12am era5 - obs") +
   theme(legend.position = "none")
 
-ggplot(noaa_sft) + 
+ggplot(noaa_sft) +
   geom_boxplot(aes(y = dtx12am, group = id)) +
   facet_wrap(~ network) +
   geom_hline(yintercept = 0, color = "red") +
   geom_hline(yintercept = 2, color = "blue") +
   geom_hline(yintercept = -2, color = "blue") +
-  ylim(c(-15,15)) +
+  ylim(c(-15, 15)) +
   ylab("tx 12am era5 - obs") +
   theme(legend.position = "none")
 ```
@@ -288,12 +288,12 @@ Map of median difference between obs and reanalysis
 
 ```{r}
 dt_plot <- noaa_dt[, .(dtn = median(dtn12am), dtx = median(dtx12am)),
-                     keyby = c("id", "lon", "lat", "network")]
+                   keyby = c("id", "lon", "lat", "network")]
 
 vect_plot <- terra::vect(dt_plot, geom = c("lon", "lat"),
-                 crs = "EPSG:4326", keepgeom = TRUE)
+                         crs = "EPSG:4326", keepgeom = TRUE)
 
-nc_borders <- terra::vect(files$county) %>% 
+nc_borders <- terra::vect(files$county) %>%
   terra::project(terra::crs(vect_plot))
 
 ggplot() +

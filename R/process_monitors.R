@@ -75,3 +75,47 @@ format_noaa_aws <- function(filename) {
   locs <- locs[, na_flag := (nb_na_tn > 5 | nb_na_tx > 5), ]
   return(list(obs = obs, locs = locs))
 }
+
+#' Format econet observations
+#'
+#' @param path character path to econet observations file
+#' @returns a list with two datatable, one for the whole observations and
+#' the other with the location metadata only
+#' @export
+format_econet_aws <- function(path) {
+  files <- list.files(path = path, pattern = "M*.xlsx")
+  obs <- do.call("rbind", lapply(files, FUN = function(file) {
+    openxlsx::read.xlsx(paste0(path, file))
+  }))
+  colnames(obs) <- c("time", "tx", "tn", "id", "network", "name",
+                     "county_default", "lat", "lon", "elev", "support")
+  obs[obs == "QCF"] <- NA
+  obs$tx <- as.numeric(obs$tx)
+  obs$tn <- as.numeric(obs$tn)
+  obs$time <- as.Date(obs$time, format = "%Y-%m-%d")
+  obs <- data.table::data.table(obs)
+  obs$tn <- (obs$tn - 32) * 5 / 9
+  obs$tx <- (obs$tx - 32) * 5 / 9
+  locs <- unique(obs[, c("id", "name", "network", "lat", "lon", "elev")]) %>%
+    data.table::data.table()
+  return(list(obs = obs, locs = locs))
+}
+
+#' Add all covariates to observation SpatVector
+#'
+#' @param obs_spvect a SpatVector of AWS observations
+#' @param covar_files list of character path to covariates files
+#' @returns a SpatVector with all covariates added
+#' @export
+add_cov <- function(obs_spvect, covar_files) {
+  output <- add_imp(covar_files$imp, obs_spvect) %>%
+    add_tcc(tcc_path = covar_files$tcc) %>%
+    add_terrain(dem_path = covar_files$dem) %>%
+    add_canopy_h(canopy_h_path = covar_files$canopy_h) %>%
+    add_build_fp(build_fp_path = covar_files$build_fp) %>%
+    add_build_h(build_h_path = covar_files$build_h) %>%
+    add_nlcd_ratio(nlcd_path = covar_files$nlcd) %>%
+    add_county(county_path = covar_files$county) %>%
+    add_era5_vect(era5_path = covar_files$era5)
+  return(output)
+}

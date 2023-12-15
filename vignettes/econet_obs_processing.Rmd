@@ -1,0 +1,45 @@
+---
+title: "Format ECONET stations and add covariates"
+output: html_document
+time: "2023-08-25"
+---
+
+# Open and format ECONET data
+
+```{r}
+econet_path <- "../input/ECONET-stations/"
+output <- format_econet_aws(econet_path)
+eco_obs <- output$obs
+eco_locs <- output$locs
+```
+
+# Tranform to SpatVect
+
+```{r}
+eco_obs_stdt <- create_stdtobj(stdt = eco_obs, crs_stdt = "EPSG:4326")
+eco_obs_v <- convert_stdt_spatvect(stdtobj = eco_obs_stdt)
+```
+
+# Add spatial covariates
+
+```{r}
+input_path <- "../input/"
+files <- list_covar_nc(input_path)
+eco_obs_v_cov <- add_cov(eco_obs_v, covar_files = files)
+```
+
+```{r}
+plot(eco_obs_v_cov$time, eco_obs_v_cov$tn)
+plot(eco_obs_v_cov$time, eco_obs_v_cov$tx)
+plot(eco_obs_v_cov$frac_MID_150m, eco_obs_v_cov$imp)
+plot(eco_obs_v_cov$tn12am, eco_obs_v_cov$tn)
+plot(eco_obs_v_cov$tx12am, eco_obs_v_cov$tx)
+```
+
+# Save 
+
+```{r}
+eco <- convert_stobj_to_stdt(eco_obs_v_cov)
+filename <- "NC-econet-dailysummary-20220601-20220831-space-time-covariates.csv"
+fwrite(eco$stdt, paste0(econet_path, filename))
+```

@@ -2,7 +2,7 @@
 #'
 #' @param era5_file a character path to era5 file
 #' with longitude, latitude, time and t2m covariates
-#' @returns a datatable with columns geom, date, lon and lat in EPSG:4326
+#' @returns a datatable with columns geom, time, lon and lat in EPSG:4326
 #' @import data.table
 #' @export
 convert_era5nc_to_dt <- function(era5_file) {
@@ -64,7 +64,7 @@ assign_date_12am <- function(x_edt) {
 #' @returns a data.table object with columns tnwmo, tn7am, tn12am
 #' @export
 compute_tn <- function(dt) {
-  t2m <- NULL
+  t2m <- time_edt <- NULL
   # EDT = Eastern Daylight Time (consider clock-changing)
   # EST = Eastern Standard Time
   tz <- "America/New_York"
@@ -73,9 +73,9 @@ compute_tn <- function(dt) {
                                                            tzone = tz),
                                         format = "%Y-%m-%d %H:%M:%s"))]
 
-  dt <- dt[, ":="(datetnwmo = as.character(assign_date_tn_wmo("time")),
-                  date7am = as.character(assign_date_7am("time_edt")),
-                  date12am = as.character(assign_date_12am("time_edt")))]
+  dt <- dt[, ":="(datetnwmo = as.character(assign_date_tn_wmo(time)),
+                  date7am = as.character(assign_date_7am(time_edt)),
+                  date12am = as.character(assign_date_12am(time_edt)))]
 
   dt_tnwmo <- dt[, list(tnwmo = min(t2m)),
     keyby = c("geom", "datetnwmo", "lon", "lat")
@@ -96,12 +96,12 @@ compute_tn <- function(dt) {
     by.x = c("geom", "datetnwmo", "lon", "lat"),
     by.y = c("geom", "date12am", "lon", "lat")
   )
-  colnames(dt_tn)[colnames(dt_tn) == "datetnwmo"] <- "date"
+  colnames(dt_tn)[colnames(dt_tn) == "datetnwmo"] <- "time"
   dt_tn$lon <- as.numeric(dt_tn$lon)
   dt_tn$lat <- as.numeric(dt_tn$lat)
-  dt_tn$date <- lubridate::ymd(dt_tn$date)
+  dt_tn$time <- lubridate::ymd(dt_tn$time)
   # remove first and last date because computation might be erroneous
-  dt_tn <- dt_tn[!(date %in% as.Date(range(dt$time)))]
+  dt_tn <- dt_tn[!(time %in% as.Date(range(dt$time)))]
   return(dt_tn)
 }
 
@@ -121,7 +121,7 @@ assign_datetxwmo <- function(x) {
 #' @returns a data.table object with columns txwmo, tx7am, tx12am
 #' @export
 compute_tx <- function(dt) {
-  t2m <- NULL
+  t2m <- time_edt <- NULL
   # EDT = Eastern Daylight Time (consider clock-changing)
   # EST = Eastern Standard Time
   tz <- "America/New_York"
@@ -129,8 +129,8 @@ compute_tx <- function(dt) {
                                                            tzone = tz),
                                         format = "%Y-%m-%d %H:%M:%s"))]
   dt <- dt[, ":="(datetxwmo = as.character(assign_datetxwmo(time)),
-                  date7am = as.character(assign_date_7am("time_edt")),
-                  date12am = as.character(assign_date_12am("time_edt")))]
+                  date7am = as.character(assign_date_7am(time_edt)),
+                  date12am = as.character(assign_date_12am(time_edt)))]
   dt_txwmo <- dt[, list(txwmo = max(t2m)),
     keyby = c("geom", "datetxwmo", "lon", "lat")
   ]
@@ -149,11 +149,12 @@ compute_tx <- function(dt) {
     by.x = c("geom", "datetxwmo", "lon", "lat"),
     by.y = c("geom", "date12am", "lon", "lat")
   )
-  colnames(dt_tx)[colnames(dt_tx) == "datetxwmo"] <- "date"
+  colnames(dt_tx)[colnames(dt_tx) == "datetxwmo"] <- "time"
   dt_tx$lon <- as.numeric(dt_tx$lon)
   dt_tx$lat <- as.numeric(dt_tx$lat)
-  dt_tx$date <- lubridate::ymd(dt_tx$date)
+  dt_tx$time <- lubridate::ymd(dt_tx$time)
   # remove first and last date because computation might be erroneous
-  dt_tx <- dt_tx[!(date %in% as.Date(range(dt$time)))]
+  dt_tx <- dt_tx[!(time %in% as.Date(range(dt$time)))]
   return(dt_tx)
 }
+

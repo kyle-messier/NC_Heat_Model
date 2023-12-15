@@ -276,7 +276,7 @@ convert_stdt_spatrastdataset <- function(stdtobj) {
       paste0(var, "."),
       ""
     )
-    var_rast <- terra::as_spatraster(newdf,
+    var_rast <- tidyterra::as_spatraster(newdf,
       xycols = c(1, 2),
       crs = stdtobj$crs_stdt
     )

@@ -86,12 +86,11 @@ write.csv(rtp_era5_dt$stdt,  "../tests/testdata/rtp_era5.csv")
 ```
 
 
-
 Empty small SpatVector in RTP area 
 
 ```{r}
-lon <- seq(-79.18, -78.40, length.out = 5) # create lon sequence
-lat <- seq(35.7, 36.10, length.out = 5) # create lat sequence
+lon <- seq(-79.15, -78.5, length.out = 5) # create lon sequence
+lat <- seq(35.8, 36.00, length.out = 5) # create lat sequence
 df <- expand.grid("lon" = lon, "lat" = lat) # expand to regular grid
 vector_rtp <- terra::vect(df,
                           geom = c("lon", "lat"),

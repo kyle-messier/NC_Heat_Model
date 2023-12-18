@@ -30,6 +30,29 @@ list_covar_nc <- function(covar_folder) {
 }
 
 
+#' Give a list of covariate files names
+#'
+#' @param covar_folder character path to covariates files
+#' @returns a list of covariate file paths
+#' @export
+list_covar_testdata <- function(covar_folder) {
+  covar_files <- list(
+    imp = paste0(covar_folder, "rtp_imp.tif"),
+    dem = paste0(covar_folder, "rtp_dem.tif"),
+    tcc = paste0(covar_folder, "rtp_tcc.tif"),
+    canopy_h = paste0(covar_folder, "rtp_canopy_h.tif"),
+    build_h = paste0(covar_folder, "rtp_build_h.shp"),
+    build_fp = paste0(covar_folder, "rtp_build_fp.tif"),
+    nlcd = paste0(covar_folder, "rtp_nlcd.tif"),
+    county = paste0(covar_folder, "rtp_counties.shp"),
+    era5 = paste0(covar_folder, "rtp_era5.csv")
+  )
+  if (!all(sapply(covar_files, file.exists))) {
+    warning("Some of the files do not exist.")
+  }
+  return(covar_files)
+}
+
 #' Give a list of monitor files names
 #'
 #' @param folder character path to monitors folder

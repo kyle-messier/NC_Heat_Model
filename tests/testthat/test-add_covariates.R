@@ -3,11 +3,12 @@ test_that("Check add_imp works", {
   d <- data.frame(lon = c(0, 10), lat = c(0, 10))
   x <- terra::vect(d, geom = c("lon", "lat"), crs = "epsg:5070")
   imp_path <- "../testdata/rtp_imp.tif"
-  expect_error(add_imp(imp_path, sp_vect = x), "NAs found in imp column")
+  expect_warning(add_imp(imp_path, sp_vect = x), "NAs found in imp column")
 
   # -- 2nd example: imp file does not exist
   sp_vect <- terra::vect("../testdata/rtp_spatvector.shp")
-  expect_error(add_imp("blablabla", sp_vect), "imp_path does not exist")
+  expect_error(add_imp("blablabla", sp_vect = sp_vect),
+               "imp_path does not exist")
 
   # -- 3rd example: everything works properly
   expect_no_error(add_imp(imp_path, sp_vect = sp_vect))
@@ -20,11 +21,12 @@ test_that("Check add_tcc works", {
   d <- data.frame(lon = c(0, 10), lat = c(0, 10))
   x <- terra::vect(d, geom = c("lon", "lat"), crs = "epsg:5070")
   tcc_path <- "../testdata/rtp_tcc.tif"
-  expect_error(add_tcc(tcc_path, sp_vect = x), "NAs found in tcc column")
+  expect_warning(add_tcc(tcc_path, sp_vect = x), "NAs found in tcc column")
 
   # -- 2nd example: tcc file does not exist
   sp_vect <- terra::vect("../testdata/rtp_spatvector.shp")
-  expect_error(add_tcc("blablabla", sp_vect), "tcc_path does not exist")
+  expect_error(add_tcc("blablabla", sp_vect = sp_vect),
+               "tcc_path does not exist")
 
   # -- 3rd example: everything works properly
   expect_no_error(add_tcc(tcc_path, sp_vect = sp_vect))
@@ -37,11 +39,12 @@ test_that("Check add_dem works", {
   d <- data.frame(lon = c(0, 10), lat = c(0, 10))
   x <- terra::vect(d, geom = c("lon", "lat"), crs = "epsg:5070")
   dem_path <- "../testdata/rtp_dem.tif"
-  expect_error(add_dem(dem_path, sp_vect = x), "NAs found in dem column")
+  expect_warning(add_dem(dem_path, sp_vect = x), "NAs found in dem column")
 
   # -- 2nd example: dem file does not exist
   sp_vect <- terra::vect("../testdata/rtp_spatvector.shp")
-  expect_error(add_dem("blablabla", sp_vect), "dem_path does not exist")
+  expect_error(add_dem("blablabla", sp_vect = sp_vect),
+               "dem_path does not exist")
 
   # -- 3rd example: everything works properly
   expect_no_error(add_dem(dem_path, sp_vect = sp_vect))
@@ -54,13 +57,13 @@ test_that("Check add_build_fp works", {
   d <- data.frame(lon = c(0, 10), lat = c(0, 10))
   x <- terra::vect(d, geom = c("lon", "lat"), crs = "epsg:5070")
   build_fp_path <- "../testdata/rtp_build_fp.tif"
-  expect_error(add_build_fp(build_fp_path, sp_vect = x),
-               "NAs found in build_fp column")
+  expect_warning(add_build_fp(build_fp_path, sp_vect = x),
+                 "NAs found in build_fp column")
 
   # -- 2nd example: build_fp file does not exist
   sp_vect <- terra::vect("../testdata/rtp_spatvector.shp")
   expect_error(
-    add_build_fp("blablabla", sp_vect),
+    add_build_fp("blablabla", sp_vect = sp_vect),
     "build_fp_path does not exist"
   )
 
@@ -73,14 +76,14 @@ test_that("Check add_build_fp works", {
 test_that("Check add_county works", {
   county_path <- "../testdata/rtp_counties.shp"
   # -- 1st example: sp_vect is not a SpatVector
-  expect_error(add_county(county_path, 123),
+  expect_error(add_county(county_path, data_vect = 123),
                "data_vect is not a terra::SpatVector.")
 
   # -- 2nd example: should work
   sp_vect <- terra::vect("../testdata/rtp_spatvector.shp")
-  output <- add_county(county_path, sp_vect)
+  output <- add_county(county_path, data_vect = sp_vect)
   expect_contains(names(output), "county")
-  expect_equal(output[c(1, 20), ]$county, c("Chatham", "Franklin"))
+  expect_equal(output[c(1, 20), ]$county, c("Chatham", "Wake"))
 })
 
 test_that("Check add_build_h works", {
@@ -88,12 +91,12 @@ test_that("Check add_build_h works", {
   d <- data.frame(lon = c(0, 10), lat = c(0, 10))
   x <- terra::vect(d, geom = c("lon", "lat"), crs = "epsg:5070")
   build_h_path <- "../testdata/rtp_build_h.shp"
-  expect_error(add_build_h(build_h_path, sp_vect = x),
-               "build_h column is only NA")
+  expect_warning(add_build_h(build_h_path, sp_vect = x),
+                 "build_h column is only NA")
 
   # -- 2nd example: build_h file does not exist
   sp_vect <- terra::vect("../testdata/rtp_spatvector.shp")
-  expect_error(add_build_h("blablabla", sp_vect),
+  expect_error(add_build_h("blablabla", sp_vect = sp_vect),
                "build_h_path does not exist")
 
   # -- 3rd example: everything works properly

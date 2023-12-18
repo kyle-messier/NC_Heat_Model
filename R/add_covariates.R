@@ -5,7 +5,7 @@
 #' @returns the same terra::SpatVector with the column "imp"
 #' @importFrom magrittr "%>%"
 #' @export
-add_imp <- function(imp_path, sp_vect) {
+add_imp <- function(sp_vect, imp_path) {
   if (!file.exists(imp_path)) {
     stop("imp_path does not exist")
   }
@@ -15,7 +15,7 @@ add_imp <- function(imp_path, sp_vect) {
     dplyr::rename(imp = names(imp)) %>%
     terra::project(terra::crs(sp_vect))
   if (any(is.na(sp_vect_cov$imp))) {
-    stop("NAs found in imp column")
+    warning("NAs found in imp column")
   }
   return(sp_vect_cov)
 }
@@ -27,7 +27,7 @@ add_imp <- function(imp_path, sp_vect) {
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "tcc"
 #' @export
-add_tcc <- function(tcc_path, sp_vect) {
+add_tcc <- function(sp_vect, tcc_path) {
   if (!file.exists(tcc_path)) {
     stop("tcc_path does not exist")
   }
@@ -41,7 +41,7 @@ add_tcc <- function(tcc_path, sp_vect) {
     dplyr::rename(tcc = names(tcc)) %>%
     terra::project(terra::crs(sp_vect))
   if (any(is.na(sp_vect_cov$tcc))) {
-    stop("NAs found in tcc column")
+    warning("NAs found in tcc column")
   }
   return(sp_vect_cov)
 }
@@ -52,7 +52,7 @@ add_tcc <- function(tcc_path, sp_vect) {
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "dem"
 #' @export
-add_dem <- function(dem_path, sp_vect) {
+add_dem <- function(sp_vect, dem_path) {
   if (!file.exists(dem_path)) {
     stop("dem_path does not exist")
   }
@@ -62,7 +62,7 @@ add_dem <- function(dem_path, sp_vect) {
     dplyr::rename(dem = names(dem)) %>%
     terra::project(terra::crs(sp_vect))
   if (any(is.na(sp_vect_cov$dem))) {
-    stop("NAs found in dem column")
+    warning("NAs found in dem column")
   }
   return(sp_vect_cov)
 }
@@ -74,7 +74,7 @@ add_dem <- function(dem_path, sp_vect) {
 #' @returns the same terra::SpatVector with terrain covariates
 #' (dem, slope, aspect, roughness, flowdir)
 #' @export
-add_terrain <- function(dem_path, sp_vect) {
+add_terrain <- function(sp_vect, dem_path) {
   dem_rast <- terra::rast(dem_path)
   names(dem_rast) <- "dem"
   dem_rast$slope <- terra::terrain(dem_rast$dem, "slope")
@@ -95,19 +95,19 @@ add_terrain <- function(dem_path, sp_vect) {
     terra::extract(x = dem_rast, bind = TRUE) %>%
     terra::project(terra::crs(sp_vect))
   if (any(is.na(sp_vect_cov$dem))) {
-    stop("NAs found in dem column")
+    warning("NAs found in dem column")
   }
   if (any(is.na(sp_vect_cov$slope))) {
-    stop("NAs found in slope column")
+    warning("NAs found in slope column")
   }
   if (any(is.na(sp_vect_cov$aspect))) {
-    stop("NAs found in aspect column")
+    warning("NAs found in aspect column")
   }
   if (any(is.na(sp_vect_cov$roughness))) {
-    stop("NAs found in roughness column")
+    warning("NAs found in roughness column")
   }
   if (any(is.na(sp_vect_cov$flowdir))) {
-    stop("NAs found in flowdir column")
+    warning("NAs found in flowdir column")
   }
   return(sp_vect_cov)
 }
@@ -121,7 +121,7 @@ add_terrain <- function(dem_path, sp_vect) {
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "build_fp"
 #' @export
-add_canopy_h <- function(canopy_h_path, sp_vect) {
+add_canopy_h <- function(sp_vect, canopy_h_path) {
   if (!file.exists(canopy_h_path)) {
     stop("canopy_h_path does not exist")
   }
@@ -137,7 +137,7 @@ add_canopy_h <- function(canopy_h_path, sp_vect) {
     dplyr::rename(canopy_h = names(canopy_h)) %>%
     terra::project(terra::crs(sp_vect))
   if (any(is.na(sp_vect_cov$canopy_h))) {
-    stop("NAs found in canopy_h column")
+    warning("NAs found in canopy_h column")
   }
   return(sp_vect_cov)
 }
@@ -150,7 +150,7 @@ add_canopy_h <- function(canopy_h_path, sp_vect) {
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "build_fp"
 #' @export
-add_build_fp <- function(build_fp_path, sp_vect) {
+add_build_fp <- function(sp_vect, build_fp_path) {
   if (!file.exists(build_fp_path)) {
     stop("build_fp_path does not exist")
   }
@@ -165,7 +165,7 @@ add_build_fp <- function(build_fp_path, sp_vect) {
     dplyr::rename(build_fp = names(build_fp)) %>%
     terra::project(terra::crs(sp_vect))
   if (any(is.na(sp_vect_cov$build_fp))) {
-    stop("NAs found in build_fp column")
+    warning("NAs found in build_fp column")
   }
   return(sp_vect_cov)
 }
@@ -177,8 +177,7 @@ add_build_fp <- function(build_fp_path, sp_vect) {
 #' @param sp_vect a terra::SpatVector
 #' @returns the same terra::SpatVector with the column "build_h"
 #' @export
-add_build_h <- function(
-    build_h_path, sp_vect) {
+add_build_h <- function(sp_vect, build_h_path) {
   if (!file.exists(build_h_path)) {
     stop("build_h_path does not exist")
   }
@@ -189,7 +188,7 @@ add_build_h <- function(
   sp_vect_cov$build_h <- sp_vect_build_h$Height_cat
   sp_vect_cov <- terra::project(sp_vect_cov, terra::crs(sp_vect))
   if (all(is.na(sp_vect_cov$build_h) | all(sp_vect_cov$build_h == "NA"))) {
-    stop("build_h column is only NA")
+    warning("build_h column is only NA")
   }
   return(sp_vect_cov)
 }
@@ -267,7 +266,7 @@ add_nlcd_ratio <- function(data_vect,
 #' @param datatable A data.table object with columns "lat", "lon"
 #' @param crs A character containing the crs of spatial data
 #' @returns same datatable object with "county" columns
-add_county <- function(county_path, data_vect) {
+add_county <- function(data_vect, county_path) {
   if (!file.exists(county_path)) {
     stop("county_path does not exist")
   }
@@ -373,29 +372,31 @@ add_era5_vect <- function(data_vect, era5_path) {
 #' @param era5_path A character path to era5 csv
 #' @returns A SpatRasterDataset
 #' @export
-add_era5_rast <- function(data_rast, era5_path = era5) {
+add_era5_rast <- function(data_rast, era5_path) {
   era5 <- data.table::fread(era5_path) %>%
     HeatModel::create_stdtobj(crs_stdt = "EPSG:4326") %>%
     HeatModel::convert_stdt_spatrastdataset()
   data_vect <- terra::as.points(data_rast)
   # empty prediction SpatVector
-  new_data_vect <- terra::vect(terra::geom(data_vect)[, c("x", "y")],
+  new_data_vect <- terra::vect(
+    terra::geom(data_vect)[, c("x", "y")],
     type = "points",
     crs = terra::crs(data_vect)
   )
   # extract each daily covariate based on era5 and convert to raster
   pred_rds_era5 <- list()
   for (i in 2:7) {
+    names <- names(era5[[i]])
     pred_rds_era5[[i - 1]] <- terra::project(
       new_data_vect,
       terra::crs(era5[[i]])
     ) %>%
       terra::extract(x = era5[[i]], bind = TRUE) %>%
       terra::project(terra::crs(new_data_vect)) %>%
-      terra::rasterize(data_rast, field = names())
-    # maybe names() won't work
+      terra::rasterize(data_rast, field = names)
   }
   # turn into a SpatRasterDataset
   pred_rds_era5 <- terra::sds(pred_rds_era5)
   names(pred_rds_era5) <- names(era5[[2:7]])
+  return(pred_rds_era5)
 }

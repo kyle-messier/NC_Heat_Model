@@ -26,50 +26,78 @@ rtp_subset <- function(sp) {
 ```
 
 ```{r}
-imp <- rast(files$imp)
+imp <- terra::rast(files$imp)
 imp_rtp <- rtp_subset(imp)
-writeRaster(imp_rtp, "../tests/testdata/rtp_imp.tif", overwrite = TRUE)
+terra::writeRaster(imp_rtp, "../tests/testdata/rtp_imp.tif", overwrite = TRUE)
 
-tcc <- rast(files$tcc)
+tcc <- terra::rast(files$tcc)
 tcc_rtp <- rtp_subset(tcc)
-writeRaster(tcc_rtp, "../tests/testdata/rtp_tcc.tif", overwrite = TRUE)
+terra::writeRaster(tcc_rtp, "../tests/testdata/rtp_tcc.tif", overwrite = TRUE)
 
-build_fp <- rast(files$build_fp)
+build_fp <- terra::rast(files$build_fp)
 build_fp_rtp <- rtp_subset(build_fp)
-writeRaster(build_fp_rtp, "../tests/testdata/rtp_build_fp.tif",
-            overwrite = TRUE)
+terra::writeRaster(build_fp_rtp, "../tests/testdata/rtp_build_fp.tif",
+                   overwrite = TRUE)
 
-dem <- rast(files$dem)
+dem <- terra::rast(files$dem)
 dem_rtp <- rtp_subset(dem) %>%
   terra::aggregate(fact = 100)
-writeRaster(dem_rtp, "../tests/testdata/rtp_dem.tif", overwrite = TRUE)
+terra::writeRaster(dem_rtp, "../tests/testdata/rtp_dem.tif", overwrite = TRUE)
 
-build_h <- vect(files$build_h)
+canopy_h <- terra::rast(files$canopy_h)
+canopy_h_rtp <- rtp_subset(canopy_h) %>%
+  terra::aggregate(fact = 100)
+terra::writeRaster(canopy_h_rtp, "../tests/testdata/rtp_canopy_h.tif",
+                   overwrite = TRUE)
+
+build_h <- terra::vect(files$build_h)
 build_h_rtp <- rtp_subset(build_h)
-writeVector(build_h_rtp, "../tests/testdata/rtp_build_h.shp", overwrite = TRUE)
+terra::writeVector(build_h_rtp, "../tests/testdata/rtp_build_h.shp",
+                   overwrite = TRUE)
 
-nlcd <- rast(files$nlcd)
+nlcd <- terra::rast(files$nlcd)
 nlcd_rtp <- rtp_subset(nlcd)
-writeRaster(nlcd_rtp, "../tests/testdata/rtp_nlcd.tif", overwrite = TRUE)
+terra::writeRaster(nlcd_rtp, "../tests/testdata/rtp_nlcd.tif", overwrite = TRUE)
 
-nc_cty <- vect(paste0("../input/NC_county_boundary/",
-                      "North_Carolina_State_and_County_Boundary_Polygons.shp"))
-rtp_cty <- rtp_subset(nc_cty)
-writeVector(rtp_cty, "../tests/testdata/rtp_counties.shp", overwrite = TRUE)
+nc_cties <- terra::vect(files$county)
+rtp_cty <- rtp_subset(nc_cties)
+terra::writeVector(rtp_cty, "../tests/testdata/rtp_counties.shp",
+                   overwrite = TRUE)
 ```
 
-Empty small spatVect in RTP area 
+ERA5 subset of 3 days
 
 ```{r}
-lon <- seq(-79.18, -78.40, length.out = 5) # create lon sequence
-lat <- seq(35.7, 36.10, length.out = 5) # create lat sequence
+era5 <- data.table::fread(files$era5) %>%
+  HeatModel::create_stdtobj(crs_stdt = "EPSG:4326") %>%
+  HeatModel::convert_stdt_spatrastdataset()
+rtp_era5 <- rtp_subset(era5)
+
+# extract 3 dates
+dates <- c("2022-08-01", "2022-08-02", "2022-08-03")
+list_era5_var <- list()
+for (era5_var in names(rtp_era5)) {
+  list_era5_var[[era5_var]] <- rtp_era5[[era5_var]][[dates]]
+}
+rtp_era5 <- terra::sds(list_era5_var)
+plot(rtp_era5[[2]])
+rtp_era5_dt <- HeatModel::convert_stobj_to_stdt(rtp_era5)
+write.csv(rtp_era5_dt$stdt,  "../tests/testdata/rtp_era5.csv")
+```
+
+
+Empty small SpatVector in RTP area 
+
+```{r}
+lon <- seq(-79.15, -78.5, length.out = 5) # create lon sequence
+lat <- seq(35.8, 36.00, length.out = 5) # create lat sequence
 df <- expand.grid("lon" = lon, "lat" = lat) # expand to regular grid
 vector_rtp <- terra::vect(df,
                           geom = c("lon", "lat"),
                           crs = "EPSG:4326",
                           keepgeom = FALSE)
-writeVector(vector_rtp, "../tests/testdata/rtp_spatvector.shp",
-            overwrite = TRUE)
+terra::writeVector(vector_rtp, "../tests/testdata/rtp_spatvector.shp",
+                   overwrite = TRUE)
 ```
 
 Small lon-lat-time dataframe

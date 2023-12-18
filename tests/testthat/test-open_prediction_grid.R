@@ -1,6 +1,5 @@
 test_that("Check open_pred_period works", {
   data_path <- "../testdata/"
-  
   # -- 1st example: period is not a Date object
   p <- c("2022-06-01", "2022-06-03")
   expect_error(open_pred_period(period = p, data_path = data_path),

@@ -22,20 +22,16 @@ create_pred_rds <- function(borders_path,
   pred_vect <- terra::as.points(pred_rast)
 
   # ADD SPATIAL COVARIATES
-  # Tree canopy height
-  pred_vect <- add_canopy_h(covar_path$canopy_h, sp_vect = pred_vect)
-  # Digital elevation model
-  pred_vect <- add_dem(covar_path$dem, sp_vect = pred_vect)
-  # Tree canopy cover
-  pred_vect <- add_tcc(covar_path$dem, sp_vect = pred_vect)
-  # Building footprint
-  pred_vect <- add_build_fp(covar_path$build_fp, sp_vect = pred_vect)
-  # Building height
-  pred_vect <- add_build_h(covar_path$build_h, sp_vect = pred_vect)
-  # Land cover ratio
-  pred_vect <- add_nlcd_ratio(data_vect = pred_vect,
-                              buf_radius = 150,
-                              nlcd_path = covar_path$nlcd)
+  pred_vect <- add_canopy_h(covar_path$canopy_h, sp_vect = pred_vect) %>%
+    add_terrain(covar_path$dem) %>%
+    add_tcc(covar_path$dem) %>%
+    add_build_fp(covar_path$build_fp) %>%
+    add_build_h(covar_path$build_h) %>%
+    add_canopy_h(covar_path$canopy_h) %>%
+    add_nlcd_ratio(buf_radius = 150,
+                   nlcd_path = covar_path$nlcd) %>%
+    add_county(county_path = covar_path$county)
+  
   # turn into a raster
   pred_rast <- terra::rasterize(pred_vect,
     pred_rast,

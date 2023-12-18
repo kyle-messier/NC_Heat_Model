@@ -1,0 +1,24 @@
+---
+title: "Prediction grid creation"
+output: html_document
+date: "2023-12-18"
+---
+
+# Create and store prediction grid
+
+```{r}
+getwd()
+cfl <- list_covar_testdata(covar_folder = "../tests/testdata/")
+create_pred_rds(borders_path = "../tests/testdata/rtp_counties.shp",
+                covar_files_list = cfl,
+                output_path = "../tests/testdata/")
+```
+
+# Open prediction grid
+
+```{r}
+data_path <- "../tests/testdata/"
+period <- seq(as.Date("2022-08-01"), as.Date("2022-08-02"), by = "1 day")
+grid <- open_pred_period(period = period, data_path = data_path)
+```
+

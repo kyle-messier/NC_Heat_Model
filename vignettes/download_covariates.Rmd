@@ -1,0 +1,77 @@
+
+---
+title: "Download_covariates"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{CWS processing analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+author: "Eva Marques"
+date: "2024-06-21"
+---
+
+Create configuration list for downloading parameters
+
+```{r}
+lon <- c(-79.19, -78.39)
+lat <- c(35.6, 36.11)
+triangle <- data.frame(lon, lat) |>
+  sf::st_as_sf(coords = c("lon", "lat"), crs = 4326) |> 
+  sf::st_bbox() |>
+  sf::st_as_sfc() 
+
+config <- list(
+  area = triangle,
+  ts = as.Date("2020-01-01"),
+  te = as.Date("2023-12-31"),
+  storage_dir = "../input/"
+)
+```
+
+
+```{r}
+download_covariates(config$area, config$ts, config$te, config$storage_dir)
+```
+
+```{r}
+amadeus::download_gmted(
+    statistic = "Median Statistic",
+    resolution = "7.5 arc-seconds",
+    directory_to_save = config$storage_dir,
+    acknowledgement = TRUE,
+    download = TRUE
+    )
+```
+
+```{r}
+amadeus::download_sedac_population(
+    data_resolution = "hello",
+    data_format = c("GeoTIFF"),
+    year = lubridate::year(config$ts):lubridate::year(config$te),
+    directory_to_save = config$storage_dir,
+    acknowledgement = TRUE,
+    download = TRUE
+  )
+```
+
+```{r}
+amadeus::download_koppen_geiger(
+    data_resolution = "hello",
+    time_period = c("Present", "Future"),
+    directory_to_save = config$storage_dir,
+  acknowledgement = TRUE,
+  download = TRUE
+  )
+```
+```{r}
+for (y in nlcd_year(config$ts, config$te)) {
+    amadeus::download_nlcd(
+      collection = "Coterminous United States",
+      year = y,
+      directory_to_save = config$storage_dir,
+      acknowledgement = TRUE,
+      download = TRUE
+    )
+  }
+```
+

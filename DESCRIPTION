@@ -8,12 +8,12 @@ Authors@R: c(
 Description: Heat model at high resolution.
 Depends: R (>= 4.1.0)
 Imports: 
-  dplyr, sf, stats, tidyverse, terra, data.table, spData, exactextractr, ggplot2, scatterpie, sftime, spatialsample, rlang, ncdf4
+  dplyr, sf, stats, tidyverse, terra, data.table, spData, exactextractr, ggplot2, scatterpie, sftime, spatialsample, rlang, ncdf4, ecmwfr
 Remotes: NIEHS/brassens, NIEHS/amadeus
 Suggests: 
   covr, withr, knitr, rmarkdown, testthat (>= 3.0.0), stars
 Encoding: UTF-8
 VignetteBuilder: knitr, rmarkdown
-RoxygenNote: 7.2.3
+RoxygenNote: 7.3.1
 Config/testhat/edition: 3
 License: MIT + file LICENSE
